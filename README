@@ -1,0 +1,26 @@
+This is free open-source bootstrap 3 theme for you.
+Licensed under GPL v3.
+
+DevOOPS (devoopsme@gmail.com)
+
+
+Used plugins
+
+jQuery-Knob http://anthonyterrien.com/knob/ (MIT or GPL)  1.2.5
+D3 http://d3js.org/ 3.4.1 AS IS
+Select2 https://github.com/ivaynberg/select2  3.4.5 GPL2
+Bootstrap Validator https://github.com/nghuuphuoc/bootstrapvalidator 0.2.3 MIT
+TinyMCE http://www.tinymce.com 4.0.16 GPL2
+jQuery Timepicker http://trentrichardson.com/examples/timepicker/ 1.4.3 MIT
+xCharts http://tenxer.github.io/xcharts/ 0.3.0 AS IS
+Fancybox http://fancyapps.com/fancybox/ 2.1.5 ?
+Widen FineUploader https://github.com/Widen/fine-uploader  (GPL3) v 4.3.1
+Datatables  http://datatables.net 1.9.4 GPL or BSD
+jQuery-UI 1.10.4
+Twitter Bootstrap http://getbootstrap.com 3.1.0
+Flot www.flotcharts.org  0.8.2 AS IS
+Fullcalendar http://arshaw.com/fullcalendar 2.0..0beta MIT
+Moment http://momentjs.com/ 2.5.1 MIT
+Justified Gallery https://github.com/miromannino/Justified-Gallery 2.1 Creative Commons 3.0
+jScrollPane http://jscrollpane.kelvinluck.com/ 2.0.19 ???
+Morris Charts http://www.oesmith.co.uk/morris.js/ v0.4.3 MIT
