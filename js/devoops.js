@@ -2374,7 +2374,7 @@ $(document).ready(function () {
 			var box = $(this).closest('div.box');
 			var button = $(this).find('i');
 			var content = box.find('div.box-content');
-			content.slideTogle('fast');
+			content.slideToggle('fast');
 			button.toggleClass('fa-chevron-up').toggleClass('fa-chevron-down');
 			setTimeout(function () {
 				box.resize();
