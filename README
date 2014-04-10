@@ -1,5 +1,5 @@
 This is free open-source bootstrap 3 theme for you.
-Licensed under GPL v3.
+Licensed under GPL v3 or MIT.
 
 DevOOPS (devoopsme@gmail.com)
 
@@ -7,7 +7,7 @@ http://devoops.me
 
 GIT- https://github.com/devoopsme/devoops
 
-Used plugins
+Used plugins (all plugins licensed under appropriate license of authors)
 
 jQuery-Knob http://anthonyterrien.com/knob/ (MIT or GPL)  1.2.5
 D3 http://d3js.org/ 3.4.1 AS IS
@@ -22,7 +22,7 @@ Datatables  http://datatables.net 1.9.4 GPL or BSD
 jQuery-UI 1.10.4
 Twitter Bootstrap http://getbootstrap.com 3.1.0
 Flot www.flotcharts.org  0.8.2 AS IS
-Fullcalendar http://arshaw.com/fullcalendar 2.0..0beta MIT
+Fullcalendar http://arshaw.com/fullcalendar 2.0.0beta MIT
 Moment http://momentjs.com/ 2.5.1 MIT
 Justified Gallery https://github.com/miromannino/Justified-Gallery 2.1 Creative Commons 3.0
 Morris Charts http://www.oesmith.co.uk/morris.js/ v0.4.3 MIT
