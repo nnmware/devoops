@@ -2,7 +2,7 @@
 /**
  * Downward compatible, touchable dial
  *
- * Version: 1.2.5 (23/01/2014)
+ * Version: 1.2.8
  * Requires: jQuery v1.7+
  *
  * Copyright (c) 2012 Anthony Terrien
@@ -10,7 +10,15 @@
  *
  * Thanks to vor, eskimoblood, spiffistan, FabrizioC
  */
-(function($) {
+(function (factory) {
+    if (typeof define === 'function' && define.amd) {
+        // AMD. Register as an anonymous module.
+        define(['jquery'], factory);
+    } else {
+        // Browser globals
+        factory(jQuery);
+    }
+}(function ($) {
 
     /**
      * Kontrol library
@@ -110,16 +118,26 @@
                     fontWeight: this.$.data('font-weight') || 'bold',
                     inline : false,
                     step : this.$.data('step') || 1,
+                    rotation: this.$.data('rotation'),
 
                     // Hooks
                     draw : null, // function () {}
                     change : null, // function (value) {}
                     cancel : null, // function () {}
-                    release : null // function (value) {}
+                    release : null, // function (value) {}
+
+                    // Output formatting, allows to add unit: %, ms ...
+                    format: function(v) {
+                        return v;
+                    },
+                    parse: function (v) {
+                        return parseFloat(v);
+                    }
                 }, this.o
             );
 
             // finalize options
+            this.o.flip = this.o.rotation === 'anticlockwise' || this.o.rotation === 'acw';
             if(!this.o.inputColor) {
                 this.o.inputColor = this.o.fgColor;
             }
@@ -133,7 +151,7 @@
                 this.i.each(function(k) {
                     var $this = $(this);
                     s.i[k] = $this;
-                    s.v[k] = $this.val();
+                    s.v[k] = s.o.parse($this.val());
 
                     $this.bind(
                         'change blur'
@@ -150,13 +168,13 @@
 
                 // input = integer
                 this.i = this.$;
-                this.v = this.$.val();
+                this.v = this.o.parse(this.$.val());
                 (this.v === '') && (this.v = this.o.min);
 
                 this.$.bind(
                     'change blur'
                     , function () {
-                        s.val(s._validate(s.$.val()));
+                        s.val(s._validate(s.o.parse(s.$.val())));
                     }
                 );
 
@@ -236,7 +254,7 @@
 
             this.isInit = true;
 
-            // the most important !
+            this.$.val(this.o.format(this.v));
             this._draw();
 
             return this;
@@ -504,6 +522,9 @@
         this.val = function (v, triggerRelease) {
             if (null != v) {
 
+                // reverse format
+                v = this.o.parse(v);
+
                 if (
                     triggerRelease !== false && (v != this.v) && this.rH &&
                         (this.rH(v) === false)
@@ -511,7 +532,7 @@
 
                 this.cv = this.o.stopper ? max(min(v, this.o.max), this.o.min) : v;
                 this.v = this.cv;
-                this.$.val(this.v);
+                this.$.val(this.o.format(this.v));
                 this._draw();
             } else {
                 return this.v;
@@ -525,6 +546,10 @@
                         x - (this.x + this.w2)
                         , - (y - this.y - this.w2)
                     ) - this.angleOffset;
+
+            if (this.o.flip) {
+                a = this.angleArc - a - this.PI2;
+            }
 
             if(this.angleArc != this.PI2 && (a < 0) && (a > -0.5)) {
                 // if isset angleArc option, set to min if .5 under min
@@ -550,7 +575,7 @@
                     var ori = e.originalEvent
                         ,deltaX = ori.detail || ori.wheelDeltaX
                         ,deltaY = ori.detail || ori.wheelDeltaY
-                        ,v = s._validate(s.$.val())
+                        ,v = s._validate(s.o.parse(s.$.val()))
                             + (deltaX>0 || deltaY>0 ? s.o.step : deltaX<0 || deltaY<0 ? -s.o.step : 0);
 
                     v = max(min(v, s.o.max), s.o.min);
@@ -602,7 +627,7 @@
                             if ($.inArray(kc,[37,38,39,40]) > -1) {
                                 e.preventDefault();
 
-                                var v = parseFloat(s.$.val()) + kv[kc] * m;
+                                var v = s.o.parse(s.$.val()) + kv[kc] * m;
                                 s.o.stopper && (v = max(min(v, s.o.max), s.o.min));
 
                                 s.change(v);
@@ -698,29 +723,42 @@
 
         this.change = function (v) {
             this.cv = v;
-            this.$.val(v);
+            this.$.val(this.o.format(v));
         };
 
         this.angle = function (v) {
             return (v - this.o.min) * this.angleArc / (this.o.max - this.o.min);
         };
 
+        this.arc = function (v) {
+          var sa, ea;
+          v = this.angle(v);
+          if (this.o.flip) {
+              sa = this.endAngle + 0.00001;
+              ea = sa - v - 0.00001;
+          } else {
+              sa = this.startAngle - 0.00001;
+              ea = sa + v + 0.00001;
+          }
+          this.o.cursor
+              && (sa = ea - this.cursorExt)
+              && (ea = ea + this.cursorExt);
+          return {
+              s: sa,
+              e: ea,
+              d: this.o.flip && !this.o.cursor
+          };
+        };
+
         this.draw = function () {
 
             var c = this.g,                 // context
-                a = this.angle(this.cv)    // Angle
-                , sat = this.startAngle     // Start angle
-                , eat = sat + a             // End angle
-                , sa, ea                    // Previous angles
+                a = this.arc(this.cv)       // Arc
+                , pa                        // Previous arc
                 , r = 1;
 
             c.lineWidth = this.lineWidth;
-
             c.lineCap = this.lineCap;
-
-            this.o.cursor
-                && (sat = eat - this.cursorExt)
-                && (eat = eat + this.cursorExt);
 
             c.beginPath();
                 c.strokeStyle = this.o.bgColor;
@@ -728,22 +766,17 @@
             c.stroke();
 
             if (this.o.displayPrevious) {
-                ea = this.startAngle + this.angle(this.v);
-                sa = this.startAngle;
-                this.o.cursor
-                    && (sa = ea - this.cursorExt)
-                    && (ea = ea + this.cursorExt);
-
+                pa = this.arc(this.v);
                 c.beginPath();
                     c.strokeStyle = this.pColor;
-                    c.arc(this.xy, this.xy, this.radius, sa - 0.00001, ea + 0.00001, false);
+                    c.arc(this.xy, this.xy, this.radius, pa.s, pa.e, pa.d);
                 c.stroke();
                 r = (this.cv == this.v);
             }
 
             c.beginPath();
                 c.strokeStyle = r ? this.o.fgColor : this.fgColor ;
-                c.arc(this.xy, this.xy, this.radius, sat - 0.00001, eat + 0.00001, false);
+                c.arc(this.xy, this.xy, this.radius, a.s, a.e, a.d);
             c.stroke();
         };
 
@@ -763,4 +796,5 @@
         ).parent();
     };
 
-})(jQuery);
+}));
+

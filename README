@@ -9,7 +9,7 @@ GIT- https://github.com/devoopsme/devoops
 
 Used plugins (all plugins licensed under appropriate license of authors)
 
-jQuery-Knob http://anthonyterrien.com/knob/ (MIT or GPL)  1.2.5
+jQuery-Knob http://anthonyterrien.com/knob/ (MIT or GPL)  1.2.8
 D3 http://d3js.org/ 3.4.1 AS IS
 Select2 https://github.com/ivaynberg/select2  3.4.5 GPL2
 Bootstrap Validator https://github.com/nghuuphuoc/bootstrapvalidator 0.2.3 MIT
