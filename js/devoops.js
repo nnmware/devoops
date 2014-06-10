@@ -109,11 +109,11 @@ function LoadDataTablesScripts(callback){
 }
 //
 //  Dynamically load Widen FineUploader
-//  homepage: https://github.com/Widen/fine-uploader  v4.3.1 license - GPL3
+//  homepage: https://github.com/Widen/fine-uploader  v5.0.1 license - GPL3
 //
 function LoadFineUploader(callback){
 	if (!$.fn.fineuploader){
-		$.getScript('plugins/fineuploader/jquery.fineuploader-4.3.1.min.js', callback);
+		$.getScript('plugins/fineuploader/jquery.fineuploader-5.0.1.min.js', callback);
 	}
 	else {
 		if (callback && typeof(callback) === "function") {
