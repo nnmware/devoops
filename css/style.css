@@ -54,6 +54,7 @@ h1, .h1, h2, .h2, h3, .h3 {
 a.show-sidebar {
   float: left;
   color:#6d6d6d;
+  outline: none;
   -webkit-transition: 0.2s;
   -moz-transition: 0.2s;
   -o-transition: 0.2s;
