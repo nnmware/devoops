@@ -6,6 +6,7 @@ body {
   overflow-y:hidden;
   margin-right: 15px;
 }
+.modal-open #content {z-index: inherit;}
 .body-expanded .expanded-panel, .fancybox-margin .expanded-panel, .modal-open .expanded-panel {
   margin-right: 15px;
 }
