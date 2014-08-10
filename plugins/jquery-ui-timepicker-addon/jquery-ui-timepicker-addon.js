@@ -1,6 +1,6 @@
-/*! jQuery Timepicker Addon - v1.4.3 - 2013-11-30
+/*! jQuery Timepicker Addon - v1.4.6 - 2014-08-09
 * http://trentrichardson.com/examples/timepicker
-* Copyright (c) 2013 Trent Richardson; Licensed MIT */
+* Copyright (c) 2014 Trent Richardson; Licensed MIT */
 (function ($) {
 
 	/*
@@ -16,7 +16,7 @@
 	*/
 	$.extend($.ui, {
 		timepicker: {
-			version: "1.4.3"
+			version: "1.4.6"
 		}
 	});
 
@@ -48,6 +48,7 @@
 		this._defaults = { // Global defaults for all the datetime picker instances
 			showButtonPanel: true,
 			timeOnly: false,
+			timeOnlyShowDate: false,
 			showHour: null,
 			showMinute: null,
 			showSecond: null,
@@ -78,6 +79,8 @@
 			microsecMax: 999,
 			minDateTime: null,
 			maxDateTime: null,
+			maxTime: null,
+			minTime: null,
 			onSelect: null,
 			hourGrid: 0,
 			minuteGrid: 0,
@@ -90,6 +93,7 @@
 			altTimeFormat: null,
 			altSeparator: null,
 			altTimeSuffix: null,
+			altRedirectFocus: true,
 			pickerTimeFormat: null,
 			pickerTimeSuffix: null,
 			showTimepicker: true,
@@ -114,6 +118,8 @@
 		millisec_slider: null,
 		microsec_slider: null,
 		timezone_select: null,
+		maxTime: null,
+		minTime: null,
 		hour: 0,
 		minute: 0,
 		second: 0,
@@ -260,11 +266,14 @@
 			tp_inst.$input = $input;
 
 			if (tp_inst._defaults.altField) {
-				tp_inst.$altInput = $(tp_inst._defaults.altField).css({
-					cursor: 'pointer'
-				}).focus(function () {
-					$input.trigger("focus");
-				});
+				tp_inst.$altInput = $(tp_inst._defaults.altField);
+				if (tp_inst._defaults.altRedirectFocus === true) {
+					tp_inst.$altInput.css({
+						cursor: 'pointer'
+					}).focus(function () {
+						$input.trigger("focus");
+					});
+				}
 			}
 
 			if (tp_inst._defaults.minDate === 0 || tp_inst._defaults.minDateTime === 0) {
@@ -660,6 +669,44 @@
 				}
 			}
 
+			if (dp_inst.settings.minTime!==null) {				
+				var tempMinTime=new Date("01/01/1970 " + dp_inst.settings.minTime);				
+				if (this.hour<tempMinTime.getHours()) {
+					this.hour=this._defaults.hourMin=tempMinTime.getHours();
+					this.minute=this._defaults.minuteMin=tempMinTime.getMinutes();							
+				} else if (this.hour===tempMinTime.getHours() && this.minute<tempMinTime.getMinutes()) {
+					this.minute=this._defaults.minuteMin=tempMinTime.getMinutes();
+				} else {						
+					if (this._defaults.hourMin<tempMinTime.getHours()) {
+						this._defaults.hourMin=tempMinTime.getHours();
+						this._defaults.minuteMin=tempMinTime.getMinutes();					
+					} else if (this._defaults.hourMin===tempMinTime.getHours()===this.hour && this._defaults.minuteMin<tempMinTime.getMinutes()) {
+						this._defaults.minuteMin=tempMinTime.getMinutes();						
+					} else {
+						this._defaults.minuteMin=0;
+					}
+				}				
+			}
+			
+			if (dp_inst.settings.maxTime!==null) {				
+				var tempMaxTime=new Date("01/01/1970 " + dp_inst.settings.maxTime);
+				if (this.hour>tempMaxTime.getHours()) {
+					this.hour=this._defaults.hourMax=tempMaxTime.getHours();						
+					this.minute=this._defaults.minuteMax=tempMaxTime.getMinutes();
+				} else if (this.hour===tempMaxTime.getHours() && this.minute>tempMaxTime.getMinutes()) {							
+					this.minute=this._defaults.minuteMax=tempMaxTime.getMinutes();						
+				} else {
+					if (this._defaults.hourMax>tempMaxTime.getHours()) {
+						this._defaults.hourMax=tempMaxTime.getHours();
+						this._defaults.minuteMax=tempMaxTime.getMinutes();					
+					} else if (this._defaults.hourMax===tempMaxTime.getHours()===this.hour && this._defaults.minuteMax>tempMaxTime.getMinutes()) {
+						this._defaults.minuteMax=tempMaxTime.getMinutes();						
+					} else {
+						this._defaults.minuteMax=59;
+					}
+				}						
+			}
+			
 			if (adjustSliders !== undefined && adjustSliders === true) {
 				var hourMax = parseInt((this._defaults.hourMax - ((this._defaults.hourMax - this._defaults.hourMin) % this._defaults.stepHour)), 10),
 					minMax = parseInt((this._defaults.minuteMax - ((this._defaults.minuteMax - this._defaults.minuteMin) % this._defaults.stepMinute)), 10),
@@ -668,23 +715,23 @@
 					microsecMax = parseInt((this._defaults.microsecMax - ((this._defaults.microsecMax - this._defaults.microsecMin) % this._defaults.stepMicrosec)), 10);
 
 				if (this.hour_slider) {
-					this.control.options(this, this.hour_slider, 'hour', { min: this._defaults.hourMin, max: hourMax });
+					this.control.options(this, this.hour_slider, 'hour', { min: this._defaults.hourMin, max: hourMax, step: this._defaults.stepHour });
 					this.control.value(this, this.hour_slider, 'hour', this.hour - (this.hour % this._defaults.stepHour));
 				}
 				if (this.minute_slider) {
-					this.control.options(this, this.minute_slider, 'minute', { min: this._defaults.minuteMin, max: minMax });
+					this.control.options(this, this.minute_slider, 'minute', { min: this._defaults.minuteMin, max: minMax, step: this._defaults.stepMinute });
 					this.control.value(this, this.minute_slider, 'minute', this.minute - (this.minute % this._defaults.stepMinute));
 				}
 				if (this.second_slider) {
-					this.control.options(this, this.second_slider, 'second', { min: this._defaults.secondMin, max: secMax });
+					this.control.options(this, this.second_slider, 'second', { min: this._defaults.secondMin, max: secMax, step: this._defaults.stepSecond });
 					this.control.value(this, this.second_slider, 'second', this.second - (this.second % this._defaults.stepSecond));
 				}
 				if (this.millisec_slider) {
-					this.control.options(this, this.millisec_slider, 'millisec', { min: this._defaults.millisecMin, max: millisecMax });
+					this.control.options(this, this.millisec_slider, 'millisec', { min: this._defaults.millisecMin, max: millisecMax, step: this._defaults.stepMillisec });
 					this.control.value(this, this.millisec_slider, 'millisec', this.millisec - (this.millisec % this._defaults.stepMillisec));
 				}
 				if (this.microsec_slider) {
-					this.control.options(this, this.microsec_slider, 'microsec', { min: this._defaults.microsecMin, max: microsecMax });
+					this.control.options(this, this.microsec_slider, 'microsec', { min: this._defaults.microsecMin, max: microsecMax, step: this._defaults.stepMicrosec });
 					this.control.value(this, this.microsec_slider, 'microsec', this.microsec - (this.microsec % this._defaults.stepMicrosec));
 				}
 			}
@@ -806,7 +853,7 @@
 			this.timeDefined = true;
 			if (hasChanged) {
 				this._updateDateTime();
-				this.$input.focus();
+				//this.$input.focus(); // may automatically open the picker on setDate
 			}
 		},
 
@@ -855,9 +902,9 @@
 			//	return;
 			//}
 
-			if (this._defaults.timeOnly === true) {
+			if (this._defaults.timeOnly === true && this._defaults.timeOnlyShowDate === false) {
 				formattedDateTime = this.formattedTime;
-			} else if (this._defaults.timeOnly !== true && (this._defaults.alwaysSetTime || timeAvailable)) {
+			} else if ((this._defaults.timeOnly !== true && (this._defaults.alwaysSetTime || timeAvailable)) || (this._defaults.timeOnly === true && this._defaults.timeOnlyShowDate === true)) {
 				formattedDateTime += this._defaults.separator + this.formattedTime + this._defaults.timeSuffix;
 			}
 
@@ -871,8 +918,8 @@
 			} else if (this.$altInput) {
 				this.$input.val(formattedDateTime);
 				var altFormattedDateTime = '',
-					altSeparator = this._defaults.altSeparator ? this._defaults.altSeparator : this._defaults.separator,
-					altTimeSuffix = this._defaults.altTimeSuffix ? this._defaults.altTimeSuffix : this._defaults.timeSuffix;
+					altSeparator = this._defaults.altSeparator !== null ? this._defaults.altSeparator : this._defaults.separator,
+					altTimeSuffix = this._defaults.altTimeSuffix !== null ? this._defaults.altTimeSuffix : this._defaults.timeSuffix;
 				
 				if (!this._defaults.timeOnly) {
 					if (this._defaults.altFormat) {
@@ -887,7 +934,7 @@
 					}
 				}
 
-				if (this._defaults.altTimeFormat) {
+				if (this._defaults.altTimeFormat !== null) {
 					altFormattedDateTime += $.datepicker.formatTime(this._defaults.altTimeFormat, this, this._defaults) + altTimeSuffix;
 				}
 				else {
@@ -1059,7 +1106,7 @@
 			var tmp_args = arguments;
 
 			if (typeof(o) === 'string') {
-				if (o === 'getDate') {
+				if (o === 'getDate'  || (o === 'option' && tmp_args.length === 2 && typeof (tmp_args[1]) === 'string')) {
 					return $.fn.datepicker.apply($(this[0]), tmp_args);
 				} else {
 					return this.each(function () {
@@ -1342,7 +1389,7 @@
 		var inst = this._getInst($(id)[0]),
 			tp_inst = this._get(inst, 'timepicker');
 
-		if (tp_inst) {
+		if (tp_inst && inst.settings.showTimepicker) {
 			tp_inst._limitMinMaxDateTime(inst, true);
 			inst.inline = inst.stay_open = true;
 			//This way the onSelect handler called from calendarpicker get the full dateTime
@@ -1441,11 +1488,11 @@
 						altFormattedDateTime = tp_inst.formattedDate + altSeparator + altFormattedDateTime;
 					}
 				}
-				$(altField).val(altFormattedDateTime);
+				$(altField).val( inst.input.val() ? altFormattedDateTime : "");
 			}
 		}
 		else {
-			$.datepicker._base_updateAlternate(inst);
+			$.datepicker._base_updateAlternate(inst);	
 		}
 	};
 
@@ -1579,16 +1626,18 @@
 	* override setDate() to allow setting time too within Date object
 	*/
 	$.datepicker._base_setDateDatepicker = $.datepicker._setDateDatepicker;
-	$.datepicker._setDateDatepicker = function (target, date) {
+	$.datepicker._setDateDatepicker = function (target, _date) {
 		var inst = this._getInst(target);
+		var date = _date;
 		if (!inst) {
 			return;
 		}
 
-		if (typeof(date) === 'string') {
-			date = new Date(date);
+		if (typeof(_date) === 'string') {
+			date = new Date(_date);
 			if (!date.getTime()) {
-				$.timepicker.log("Error creating Date object from string.");
+				this._base_setDateDatepicker.apply(this, arguments);
+				date = $(target).datepicker('getDate');
 			}
 		}
 
@@ -2034,6 +2083,13 @@
 			end: {}         // options for end picker
 		}, options);
 
+		// for the mean time this fixes an issue with calling getDate with timepicker()
+		var timeOnly = false;
+		if(method === 'timepicker'){
+			timeOnly = true;
+			method = 'datetimepicker';
+		}
+
 		function checkDates(changed, other) {
 			var startdt = startTime[method]('getDate'),
 				enddt = endTime[method]('getDate'),
@@ -2077,6 +2133,7 @@
 		}
 
 		$.fn[method].call(startTime, $.extend({
+			timeOnly: timeOnly,
 			onClose: function (dateText, inst) {
 				checkDates($(this), endTime);
 			},
@@ -2085,6 +2142,7 @@
 			}
 		}, options, options.start));
 		$.fn[method].call(endTime, $.extend({
+			timeOnly: timeOnly,
 			onClose: function (dateText, inst) {
 				checkDates($(this), startTime);
 			},
@@ -2140,6 +2198,6 @@
 	/*
 	* Keep up with the version
 	*/
-	$.timepicker.version = "1.4.3";
+	$.timepicker.version = "1.4.6";
 
 })(jQuery);
