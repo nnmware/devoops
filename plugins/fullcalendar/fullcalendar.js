@@ -1,5 +1,5 @@
 /*!
- * FullCalendar v2.0.0-beta2
+ * FullCalendar v2.0.2
  * Docs & License: http://arshaw.com/fullcalendar/
  * (c) 2013 Adam Shaw
  */
@@ -46,6 +46,8 @@ var defaults = {
 	endParam: 'end',
 	timezoneParam: 'timezone',
 
+	timezone: false,
+
 	//allDayDefault: undefined,
 	
 	// time formats
@@ -62,10 +64,16 @@ var defaults = {
 	timeFormat: { // for event elements
 		'default': generateShortTimeFormat
 	},
+
+	displayEventEnd: {
+		month: false,
+		basicWeek: false,
+		'default': true
+	},
 	
 	// locale
 	isRTL: false,
-	buttonText: {
+	defaultButtonText: {
 		prev: "prev",
 		next: "next",
 		prevYear: "prev year",
@@ -97,7 +105,8 @@ var defaults = {
 	
 	dropAccept: '*',
 	
-	handleWindowResize: true
+	handleWindowResize: true,
+	windowResizeDelay: 200 // milliseconds before a rerender happens
 	
 };
 
@@ -157,7 +166,7 @@ var rtlDefaults = {
 
 ;;
 
-var fc = $.fullCalendar = { version: "2.0.0-beta2" };
+var fc = $.fullCalendar = { version: "2.0.2" };
 var fcViews = fc.views = {};
 
 
@@ -261,7 +270,7 @@ fc.datepickerLang = function(langCode, datepickerLangCode, options) {
 				'YYYY[' + options.yearSuffix + '] MMMM' :
 				'MMMM YYYY[' + options.yearSuffix + ']'
 		},
-		buttonText: {
+		defaultButtonText: {
 			// the translations sometimes wrongly contain HTML entities
 			prev: stripHTMLEntities(options.prevText),
 			next: stripHTMLEntities(options.nextText),
@@ -391,7 +400,7 @@ function Calendar(element, instanceOptions) {
 	if (options.dayNamesShort) {
 		langData._weekdaysShort = options.dayNamesShort;
 	}
-	if (options.firstDay) {
+	if (options.firstDay != null) {
 		var _week = createObject(langData._week); // _week: { dow: # }
 		_week.dow = options.firstDay;
 		langData._week = _week;
@@ -414,12 +423,17 @@ function Calendar(element, instanceOptions) {
 
 		if (options.timezone === 'local') {
 			mom = fc.moment.apply(null, arguments);
+
+			// Force the moment to be local, because fc.moment doesn't guarantee it.
+			if (mom.hasTime()) { // don't give ambiguously-timed moments a local zone
+				mom.local();
+			}
 		}
 		else if (options.timezone === 'UTC') {
-			mom = fc.moment.utc.apply(null, arguments);
+			mom = fc.moment.utc.apply(null, arguments); // process as UTC
 		}
 		else {
-			mom = fc.moment.parseZone.apply(null, arguments);
+			mom = fc.moment.parseZone.apply(null, arguments); // let the input decide the zone
 		}
 
 		mom._lang = langData;
@@ -639,9 +653,19 @@ function Calendar(element, instanceOptions) {
 
 		$(window).unbind('resize', windowResize);
 
+		if (options.droppable) {
+			$(document)
+				.off('dragstart', droppableDragStart)
+				.off('dragstop', droppableDragStop);
+		}
+
+		if (currentView.selectionManagerDestroy) {
+			currentView.selectionManagerDestroy();
+		}
+
 		header.destroy();
 		content.remove();
-		element.removeClass('fc fc-rtl ui-widget');
+		element.removeClass('fc fc-ltr fc-rtl ui-widget');
 	}
 	
 	
@@ -782,8 +806,11 @@ function Calendar(element, instanceOptions) {
 	}
 	
 	
-	function windowResize() {
-		if (!ignoreWindowResize) {
+	function windowResize(ev) {
+		if (
+			!ignoreWindowResize &&
+			ev.target === window // so we don't process jqui "resize" events that have bubbled up
+		) {
 			if (currentView.start) { // view has already been rendered
 				var uid = ++resizeUID;
 				setTimeout(function() { // add a delay
@@ -795,7 +822,7 @@ function Calendar(element, instanceOptions) {
 							ignoreWindowResize--;
 						}
 					}
-				}, 200);
+				}, options.windowResizeDelay);
 			}else{
 				// calendar must have been initialized in a 0x0 iframe that has just been resized
 				lateRender();
@@ -944,8 +971,8 @@ function Calendar(element, instanceOptions) {
 	}
 	
 	
-	function incrementDate() {
-		date.add.apply(date, arguments);
+	function incrementDate(delta) {
+		date.add(moment.duration(delta));
 		renderView();
 	}
 	
@@ -1021,23 +1048,28 @@ function Calendar(element, instanceOptions) {
 	if (options.droppable) {
 		// TODO: unbind on destroy
 		$(document)
-			.bind('dragstart', function(ev, ui) {
-				var _e = ev.target;
-				var e = $(_e);
-				if (!e.parents('.fc').length) { // not already inside a calendar
-					var accept = options.dropAccept;
-					if ($.isFunction(accept) ? accept.call(_e, e) : e.is(accept)) {
-						_dragElement = _e;
-						currentView.dragStart(_dragElement, ev, ui);
-					}
-				}
-			})
-			.bind('dragstop', function(ev, ui) {
-				if (_dragElement) {
-					currentView.dragStop(_dragElement, ev, ui);
-					_dragElement = null;
-				}
-			});
+			.on('dragstart', droppableDragStart)
+			.on('dragstop', droppableDragStop);
+		// this is undone in destroy
+	}
+
+	function droppableDragStart(ev, ui) {
+		var _e = ev.target;
+		var e = $(_e);
+		if (!e.parents('.fc').length) { // not already inside a calendar
+			var accept = options.dropAccept;
+			if ($.isFunction(accept) ? accept.call(_e, e) : e.is(accept)) {
+				_dragElement = _e;
+				currentView.dragStart(_dragElement, ev, ui);
+			}
+		}
+	}
+
+	function droppableDragStop(ev, ui) {
+		if (_dragElement) {
+			currentView.dragStop(_dragElement, ev, ui);
+			_dragElement = null;
+		}
 	}
 	
 
@@ -1118,17 +1150,21 @@ function Header(calendar, options) {
 							// smartProperty allows different text per view button (ex: "Agenda Week" vs "Basic Week")
 							var themeIcon = smartProperty(options.themeButtonIcons, buttonName);
 							var normalIcon = smartProperty(options.buttonIcons, buttonName);
-							var text = smartProperty(options.buttonText, buttonName);
+							var defaultText = smartProperty(options.defaultButtonText, buttonName);
+							var customText = smartProperty(options.buttonText, buttonName);
 							var html;
 
-							if (themeIcon && options.theme) {
+							if (customText) {
+								html = htmlEscape(customText);
+							}
+							else if (themeIcon && options.theme) {
 								html = "<span class='ui-icon ui-icon-" + themeIcon + "'></span>";
 							}
 							else if (normalIcon && !options.theme) {
 								html = "<span class='fc-icon fc-icon-" + normalIcon + "'></span>";
 							}
 							else {
-								html = htmlEscape(text || buttonName);
+								html = htmlEscape(defaultText || buttonName);
 							}
 
 							var button = $(
@@ -1259,16 +1295,15 @@ function EventManager(options) { // assumed to be a calendar
 	var cache = [];
 
 
-
-	var _sources = options.eventSources || [];
-
-	if (options.events) {
-		_sources.push(options.events);
-	}
-	
-	for (var i=0; i<_sources.length; i++) {
-		_addEventSource(_sources[i]);
-	}
+	$.each(
+		(options.events ? [ options.events ] : []).concat(options.eventSources || []),
+		function(i, sourceInput) {
+			var source = buildEventSource(sourceInput);
+			if (source) {
+				sources.push(source);
+			}
+		}
+	);
 	
 	
 	
@@ -1299,11 +1334,21 @@ function EventManager(options) { // assumed to be a calendar
 	
 	function fetchEventSource(source, fetchID) {
 		_fetchEventSource(source, function(events) {
+			var isArraySource = $.isArray(source.events);
+			var i;
+			var event;
+
 			if (fetchID == currentFetchID) {
 
 				if (events) {
-					for (var i=0; i<events.length; i++) {
-						var event = buildEvent(events[i], source);
+					for (i=0; i<events.length; i++) {
+						event = events[i];
+
+						// event array sources have already been convert to Event Objects
+						if (!isArraySource) {
+							event = buildEvent(event, source);
+						}
+
 						if (event) {
 							cache.push(event);
 						}
@@ -1434,29 +1479,53 @@ function EventManager(options) { // assumed to be a calendar
 	-----------------------------------------------------------------------------*/
 	
 
-	function addEventSource(source) {
-		source = _addEventSource(source);
+	function addEventSource(sourceInput) {
+		var source = buildEventSource(sourceInput);
 		if (source) {
+			sources.push(source);
 			pendingSourceCnt++;
 			fetchEventSource(source, currentFetchID); // will eventually call reportEvents
 		}
 	}
-	
-	
-	function _addEventSource(source) {
-		if ($.isFunction(source) || $.isArray(source)) {
-			source = { events: source };
+
+
+	function buildEventSource(sourceInput) { // will return undefined if invalid source
+		var normalizers = fc.sourceNormalizers;
+		var source;
+		var i;
+
+		if ($.isFunction(sourceInput) || $.isArray(sourceInput)) {
+			source = { events: sourceInput };
 		}
-		else if (typeof source == 'string') {
-			source = { url: source };
+		else if (typeof sourceInput === 'string') {
+			source = { url: sourceInput };
 		}
-		if (typeof source == 'object') {
-			normalizeSource(source);
-			sources.push(source);
+		else if (typeof sourceInput === 'object') {
+			source = $.extend({}, sourceInput); // shallow copy
+
+			if (typeof source.className === 'string') {
+				// TODO: repeat code, same code for event classNames
+				source.className = source.className.split(/\s+/);
+			}
+		}
+
+		if (source) {
+
+			// for array sources, we convert to standard Event Objects up front
+			if ($.isArray(source.events)) {
+				source.events = $.map(source.events, function(eventInput) {
+					return buildEvent(eventInput, source);
+				});
+			}
+
+			for (i=0; i<normalizers.length; i++) {
+				normalizers[i].call(t, source);
+			}
+
 			return source;
 		}
 	}
-	
+
 
 	function removeEventSource(source) {
 		sources = $.grep(sources, function(src) {
@@ -1468,6 +1537,16 @@ function EventManager(options) { // assumed to be a calendar
 		});
 		reportEvents(cache);
 	}
+
+
+	function isSourcesEqual(source1, source2) {
+		return source1 && source2 && getSourcePrimitive(source1) == getSourcePrimitive(source2);
+	}
+
+
+	function getSourcePrimitive(source) {
+		return ((typeof source == 'object') ? (source.events || source.url) : '') || source;
+	}
 	
 	
 	
@@ -1476,6 +1555,12 @@ function EventManager(options) { // assumed to be a calendar
 
 
 	function updateEvent(event) {
+
+		event.start = t.moment(event.start);
+		if (event.end) {
+			event.end = t.moment(event.end);
+		}
+
 		mutateEvent(event);
 		propagateMiscProperties(event);
 		reportEvents(cache); // reports event modifications (so we can redraw)
@@ -1531,30 +1616,31 @@ function EventManager(options) { // assumed to be a calendar
 	
 	
 	function removeEvents(filter) {
+		var eventID;
 		var i;
-		if (!filter) { // remove all
-			cache = [];
-			// clear all array sources
-			for (i=0; i<sources.length; i++) {
-				if ($.isArray(sources[i].events)) {
-					sources[i].events = [];
-				}
-			}
-		}else{
-			if (!$.isFunction(filter)) { // an event ID
-				var id = filter + '';
-				filter = function(e) {
-					return e._id == id;
-				};
-			}
-			cache = $.grep(cache, filter, true);
-			// remove events from array sources
-			for (i=0; i<sources.length; i++) {
-				if ($.isArray(sources[i].events)) {
-					sources[i].events = $.grep(sources[i].events, filter, true);
-				}
+
+		if (filter == null) { // null or undefined. remove all events
+			filter = function() { return true; }; // will always match
+		}
+		else if (!$.isFunction(filter)) { // an event ID
+			eventID = filter + '';
+			filter = function(event) {
+				return event._id == eventID;
+			};
+		}
+
+		// Purge event(s) from our local cache
+		cache = $.grep(cache, filter, true); // inverse=true
+
+		// Remove events from array sources.
+		// This works because they have been converted to official Event Objects up front.
+		// (and as a result, event._id has been calculated).
+		for (i=0; i<sources.length; i++) {
+			if ($.isArray(sources[i].events)) {
+				sources[i].events = $.grep(sources[i].events, filter, true);
 			}
 		}
+
 		reportEvents(cache);
 	}
 	
@@ -1563,7 +1649,7 @@ function EventManager(options) { // assumed to be a calendar
 		if ($.isFunction(filter)) {
 			return $.grep(cache, filter);
 		}
-		else if (filter) { // an event ID
+		else if (filter != null) { // not null, not undefined. an event ID
 			filter += '';
 			return $.grep(cache, function(e) {
 				return e._id == filter;
@@ -1706,7 +1792,7 @@ function EventManager(options) { // assumed to be a calendar
 	// If `newStart`/`newEnd` are not specified, the "new" dates are assumed to be `event.start` and `event.end`.
 	// The "old" dates to be compare against are always `event._start` and `event._end` (set by EventManager).
 	//
-	// Returns a function that can be called to undo all the operations.
+	// Returns an object with delta information and a function to undo all operations.
 	//
 	function mutateEvent(event, newStart, newEnd) {
 		var oldAllDay = event._allDay;
@@ -1716,6 +1802,7 @@ function EventManager(options) { // assumed to be a calendar
 		var newAllDay;
 		var dateDelta;
 		var durationDelta;
+		var undoFunc;
 
 		// if no new dates were passed in, compare against the event's existing dates
 		if (!newStart && !newEnd) {
@@ -1770,13 +1857,19 @@ function EventManager(options) { // assumed to be a calendar
 			));
 		}
 
-		return mutateEvents(
+		undoFunc = mutateEvents(
 			clientEvents(event._id), // get events with this ID
 			clearEnd,
 			newAllDay,
 			dateDelta,
 			durationDelta
 		);
+
+		return {
+			dateDelta: dateDelta,
+			durationDelta: durationDelta,
+			undo: undoFunc
+		};
 	}
 
 
@@ -1833,11 +1926,11 @@ function EventManager(options) { // assumed to be a calendar
 			// if the dates have changed, and we know it is impossible to recompute the
 			// timezone offsets, strip the zone.
 			if (isAmbigTimezone) {
-				if (+dateDelta) {
+				if (+dateDelta || +durationDelta) {
 					newStart.stripZone();
-				}
-				if (newEnd && (+dateDelta || +durationDelta)) {
-					newEnd.stripZone();
+					if (newEnd) {
+						newEnd.stripZone();
+					}
 				}
 			}
 
@@ -1860,38 +1953,6 @@ function EventManager(options) { // assumed to be a calendar
 			}
 		};
 	}
-	
-	
-	
-	/* Utils
-	------------------------------------------------------------------------------*/
-	
-	
-	function normalizeSource(source) {
-		if (source.className) {
-			// TODO: repeat code, same code for event classNames
-			if (typeof source.className == 'string') {
-				source.className = source.className.split(/\s+/);
-			}
-		}else{
-			source.className = [];
-		}
-		var normalizers = fc.sourceNormalizers;
-		for (var i=0; i<normalizers.length; i++) {
-			normalizers[i].call(t, source);
-		}
-	}
-	
-	
-	function isSourcesEqual(source1, source2) {
-		return source1 && source2 && getSourcePrimitive(source1) == getSourcePrimitive(source2);
-	}
-	
-	
-	function getSourcePrimitive(source) {
-		return ((typeof source == 'object') ? (source.events || source.url) : '') || source;
-	}
-
 
 }
 
@@ -1917,7 +1978,8 @@ function createObject(proto) {
 	return new f();
 }
 
-// copy specifically-owned (non-protoype) properties of `b` onto `a`
+// Copies specifically-owned (non-protoype) properties of `b` onto `a`.
+// FYI, $.extend would copy *all* properties of `b` onto `a`.
 function extend(a, b) {
 	for (var i in b) {
 		if (b.hasOwnProperty(i)) {
@@ -2065,6 +2127,7 @@ function arrayMax(a) {
 
 
 function smartProperty(obj, name) { // get a camel-cased/namespaced property of an object
+	obj = obj || {};
 	if (obj[name] !== undefined) {
 		return obj[name];
 	}
@@ -2194,98 +2257,119 @@ var ambigTimeOrZoneRegex = /^\s*\d{4}-(?:(\d\d-\d\d)|(W\d\d$)|(W\d\d-\d)|(\d\d\d
 // Creating
 // -------------------------------------------------------------------------------------------------
 
-// Creates a moment in the local timezone, similar to the vanilla moment(...) constructor,
-// but with extra features:
-// - ambiguous times
-// - enhanced formatting (TODO)
+// Creates a new moment, similar to the vanilla moment(...) constructor, but with
+// extra features (ambiguous time, enhanced formatting). When gived an existing moment,
+// it will function as a clone (and retain the zone of the moment). Anything else will
+// result in a moment in the local zone.
 fc.moment = function() {
 	return makeMoment(arguments);
 };
 
-// Sames as fc.moment, but creates a moment in the UTC timezone.
+// Sames as fc.moment, but forces the resulting moment to be in the UTC timezone.
 fc.moment.utc = function() {
-	return makeMoment(arguments, true);
+	var mom = makeMoment(arguments, true);
+
+	// Force it into UTC because makeMoment doesn't guarantee it.
+	if (mom.hasTime()) { // don't give ambiguously-timed moments a UTC zone
+		mom.utc();
+	}
+
+	return mom;
 };
 
-// Creates a moment and preserves the timezone offset of the ISO8601 string,
-// allowing for ambigous timezones. If the string is not an ISO8601 string,
-// the moment is processed in UTC-mode (a departure from moment's method).
+// Same as fc.moment, but when given an ISO8601 string, the timezone offset is preserved.
+// ISO8601 strings with no timezone offset will become ambiguously zoned.
 fc.moment.parseZone = function() {
 	return makeMoment(arguments, true, true);
 };
 
-// when parseZone==true, if can't figure it out, fall back to parseUTC
-function makeMoment(args, parseUTC, parseZone) {
+// Builds an FCMoment from args. When given an existing moment, it clones. When given a native
+// Date, or called with no arguments (the current time), the resulting moment will be local.
+// Anything else needs to be "parsed" (a string or an array), and will be affected by:
+//    parseAsUTC - if there is no zone information, should we parse the input in UTC?
+//    parseZone - if there is zone information, should we force the zone of the moment?
+function makeMoment(args, parseAsUTC, parseZone) {
 	var input = args[0];
 	var isSingleString = args.length == 1 && typeof input === 'string';
-	var isAmbigTime = false;
-	var isAmbigZone = false;
+	var isAmbigTime;
+	var isAmbigZone;
 	var ambigMatch;
-	var mom;
-
-	if (isSingleString) {
-		if (ambigDateOfMonthRegex.test(input)) {
-			// accept strings like '2014-05', but convert to the first of the month
-			input += '-01';
-			isAmbigTime = true;
-			isAmbigZone = true;
-		}
-		else if ((ambigMatch = ambigTimeOrZoneRegex.exec(input))) {
-			isAmbigTime = !ambigMatch[5]; // no time part?
-			isAmbigZone = true;
-		}
-	}
-	else if ($.isArray(input)) {
-		// arrays have no timezone information, so assume ambiguous zone
-		isAmbigZone = true;
-	}
-
-	// instantiate a vanilla moment
-	if (parseUTC || parseZone || isAmbigTime) {
-		mom = moment.utc.apply(moment, args);
-	}
-	else {
-		mom = moment.apply(null, args);
-	}
+	var output; // an object with fields for the new FCMoment object
 
 	if (moment.isMoment(input)) {
-		transferAmbigs(input, mom);
-	}
+		output = moment.apply(null, args); // clone it
 
-	if (isAmbigTime) {
-		mom._ambigTime = true;
-		mom._ambigZone = true; // if ambiguous time, also ambiguous timezone offset
-	}
-
-	if (parseZone) {
-		if (isAmbigZone) {
-			mom._ambigZone = true;
+		// the ambig properties have not been preserved in the clone, so reassign them
+		if (input._ambigTime) {
+			output._ambigTime = true;
 		}
-		else if (isSingleString) {
-			mom.zone(input); // if fails, will set it to 0, which it already was
-		}
-		else if (isNativeDate(input) || input === undefined) {
-			// native Date object?
-			// specified with no arguments?
-			// then consider the moment to be local
-			mom.local();
+		if (input._ambigZone) {
+			output._ambigZone = true;
 		}
 	}
+	else if (isNativeDate(input) || input === undefined) {
+		output = moment.apply(null, args); // will be local
+	}
+	else { // "parsing" is required
+		isAmbigTime = false;
+		isAmbigZone = false;
 
-	return new FCMoment(mom);
+		if (isSingleString) {
+			if (ambigDateOfMonthRegex.test(input)) {
+				// accept strings like '2014-05', but convert to the first of the month
+				input += '-01';
+				args = [ input ]; // for when we pass it on to moment's constructor
+				isAmbigTime = true;
+				isAmbigZone = true;
+			}
+			else if ((ambigMatch = ambigTimeOrZoneRegex.exec(input))) {
+				isAmbigTime = !ambigMatch[5]; // no time part?
+				isAmbigZone = true;
+			}
+		}
+		else if ($.isArray(input)) {
+			// arrays have no timezone information, so assume ambiguous zone
+			isAmbigZone = true;
+		}
+		// otherwise, probably a string with a format
+
+		if (parseAsUTC) {
+			output = moment.utc.apply(moment, args);
+		}
+		else {
+			output = moment.apply(null, args);
+		}
+
+		if (isAmbigTime) {
+			output._ambigTime = true;
+			output._ambigZone = true; // ambiguous time always means ambiguous zone
+		}
+		else if (parseZone) { // let's record the inputted zone somehow
+			if (isAmbigZone) {
+				output._ambigZone = true;
+			}
+			else if (isSingleString) {
+				output.zone(input); // if not a valid zone, will assign UTC
+			}
+		}
+	}
+
+	return new FCMoment(output);
 }
 
-// our subclass of Moment.
-// accepts an object with the internal Moment properties that should be copied over to
-// this object (most likely another Moment object).
-function FCMoment(config) {
-	extend(this, config);
+// Our subclass of Moment.
+// Accepts an object with the internal Moment properties that should be copied over to
+// `this` object (most likely another Moment object). The values in this data must not
+// be referenced by anything else (two moments sharing a Date object for example).
+function FCMoment(internalData) {
+	extend(this, internalData);
 }
 
-// chain the prototype to Moment's
+// Chain the prototype to Moment's
 FCMoment.prototype = createObject(moment.fn);
 
-// we need this because Moment's implementation will not copy of the ambig flags
+// We need this because Moment's implementation won't create an FCMoment,
+// nor will it copy over the ambig flags.
 FCMoment.prototype.clone = function() {
 	return makeMoment([ this ]);
 };
@@ -2318,7 +2402,16 @@ FCMoment.prototype.time = function(time) {
 			time = moment.duration(time);
 		}
 
-		return this.hours(time.hours() + time.days() * 24) // day value will cause overflow (so 24 hours becomes 00:00:00 of next day)
+		// The day value should cause overflow (so 24 hours becomes 00:00:00 of next day).
+		// Only for Duration times, not Moment times.
+		var dayHours = 0;
+		if (moment.isDuration(time)) {
+			dayHours = Math.floor(time.asDays()) * 24;
+		}
+
+		// We need to set the individual fields.
+		// Can't use startOf('day') then add duration. In case of DST at start of day.
+		return this.hours(dayHours + time.hours())
 			.minutes(time.minutes())
 			.seconds(time.seconds())
 			.milliseconds(time.milliseconds());
@@ -2334,16 +2427,18 @@ FCMoment.prototype.stripTime = function() {
 	// set the internal UTC flag
 	moment.fn.utc.call(this); // call the original method, because we don't want to affect _ambigZone
 
-	this._ambigTime = true;
-	this._ambigZone = true; // if ambiguous time, also ambiguous timezone offset
-
-	this.year(a[0])
+	this.year(a[0]) // TODO: find a way to do this in one shot
 		.month(a[1])
 		.date(a[2])
 		.hours(0)
 		.minutes(0)
 		.seconds(0)
 		.milliseconds(0);
+
+	// Mark the time as ambiguous. This needs to happen after the .utc() call, which calls .zone(), which
+	// clears all ambig flags. Same concept with the .year/month/date calls in the case of moment-timezone.
+	this._ambigTime = true;
+	this._ambigZone = true; // if ambiguous time, also ambiguous timezone offset
 
 	return this; // for chaining
 };
@@ -2362,19 +2457,26 @@ FCMoment.prototype.hasTime = function() {
 // timezone offset when .format() is called.
 FCMoment.prototype.stripZone = function() {
 	var a = this.toArray(); // year,month,date,hours,minutes,seconds as an array
+	var wasAmbigTime = this._ambigTime;
 
-	// set the internal UTC flag
-	moment.fn.utc.call(this); // call the original method, because we don't want to affect _ambigZone
+	moment.fn.utc.call(this); // set the internal UTC flag
 
-	this._ambigZone = true;
-
-	this.year(a[0])
+	this.year(a[0]) // TODO: find a way to do this in one shot
 		.month(a[1])
 		.date(a[2])
 		.hours(a[3])
 		.minutes(a[4])
 		.seconds(a[5])
 		.milliseconds(a[6]);
+
+	if (wasAmbigTime) {
+		// the above call to .utc()/.zone() unfortunately clears the ambig flags, so reassign
+		this._ambigTime = true;
+	}
+
+	// Mark the zone as ambiguous. This needs to happen after the .utc() call, which calls .zone(), which
+	// clears all ambig flags. Same concept with the .year/month/date calls in the case of moment-timezone.
+	this._ambigZone = true;
 
 	return this; // for chaining
 };
@@ -2386,23 +2488,50 @@ FCMoment.prototype.hasZone = function() {
 
 // this method implicitly marks a zone
 FCMoment.prototype.zone = function(tzo) {
+
 	if (tzo != null) {
+		// FYI, the delete statements need to be before the .zone() call or else chaos ensues
+		// for reasons I don't understand. 
+		delete this._ambigTime;
 		delete this._ambigZone;
 	}
+
 	return moment.fn.zone.apply(this, arguments);
 };
 
-// this method implicitly marks a zone.
-// we don't need this, because .local internally calls .zone, but we don't want to depend on that.
+// this method implicitly marks a zone
 FCMoment.prototype.local = function() {
+	var a = this.toArray(); // year,month,date,hours,minutes,seconds as an array
+	var wasAmbigZone = this._ambigZone;
+
+	// will happen anyway via .local()/.zone(), but don't want to rely on internal implementation
+	delete this._ambigTime;
 	delete this._ambigZone;
-	return moment.fn.local.apply(this, arguments);
+
+	moment.fn.local.apply(this, arguments);
+
+	if (wasAmbigZone) {
+		// If the moment was ambiguously zoned, the date fields were stored as UTC.
+		// We want to preserve these, but in local time.
+		this.year(a[0]) // TODO: find a way to do this in one shot
+			.month(a[1])
+			.date(a[2])
+			.hours(a[3])
+			.minutes(a[4])
+			.seconds(a[5])
+			.milliseconds(a[6]);
+	}
+
+	return this; // for chaining
 };
 
-// this method implicitly marks a zone.
-// we don't need this, because .utc internally calls .zone, but we don't want to depend on that.
+// this method implicitly marks a zone
 FCMoment.prototype.utc = function() {
+
+	// will happen anyway via .local()/.zone(), but don't want to rely on internal implementation
+	delete this._ambigTime;
 	delete this._ambigZone;
+
 	return moment.fn.utc.apply(this, arguments);
 };
 
@@ -2458,23 +2587,6 @@ $.each([
 
 // Misc Internals
 // -------------------------------------------------------------------------------------------------
-
-// transfers our internal _ambig properties from one moment to another
-function transferAmbigs(src, dest) {
-	if (src._ambigTime) {
-		dest._ambigTime = true;
-	}
-	else if (dest._ambigTime) {
-		delete dest._ambigTime;
-	}
-
-	if (src._ambigZone) {
-		dest._ambigZone = true;
-	}
-	else if (dest._ambigZone) {
-		delete dest._ambigZone;
-	}
-}
 
 // given an array of moment-like inputs, return a parallel array w/ moments similarly ambiguated.
 // for example, of one moment has ambig time, but not others, all moments will have their time stripped.
@@ -2578,6 +2690,9 @@ function formatDateWithChunk(date, chunk) {
 // rendering of one date, without any separator.
 function formatRange(date1, date2, formatStr, separator, isRTL) {
 
+	date1 = fc.moment.parseZone(date1);
+	date2 = fc.moment.parseZone(date2);
+
 	// Expand localized format strings, like "LL" -> "MMMM D YYYY"
 	formatStr = date1.lang().longDateFormat(formatStr) || formatStr;
 	// BTW, this is not important for `formatDate` because it is impossible to put custom tokens
@@ -2650,9 +2765,17 @@ var similarUnitMap = {
 	Y: 'year',
 	M: 'month',
 	D: 'day', // day of month
-	d: 'day' // day of week
+	d: 'day', // day of week
+	// prevents a separator between anything time-related...
+	A: 'second', // AM/PM
+	a: 'second', // am/pm
+	T: 'second', // A/P
+	t: 'second', // a/p
+	H: 'second', // hour (24)
+	h: 'second', // hour (12)
+	m: 'second', // minute
+	s: 'second' // second
 };
-// don't go any further than day, because we don't want to break apart times like "12:30:00"
 // TODO: week maybe?
 
 
@@ -2697,11 +2820,11 @@ function getFormatStringChunks(formatStr) {
 // Break the formatting string into an array of chunks
 function chunkFormatString(formatStr) {
 	var chunks = [];
-	var chunker = /\[([^\]]*)\]|\(([^\)]*)\)|((\w)\4*o?T?)|([^\w\[\(]+)/g; // TODO: more descrimination
+	var chunker = /\[([^\]]*)\]|\(([^\)]*)\)|(LT|(\w)\4*o?)|([^\w\[\(]+)/g; // TODO: more descrimination
 	var match;
 
 	while ((match = chunker.exec(formatStr))) {
-		if (match[1]) { // a literal string instead [ ... ]
+		if (match[1]) { // a literal string inside [ ... ]
 			chunks.push(match[1]);
 		}
 		else if (match[2]) { // non-zero formatting inside ( ... )
@@ -2745,11 +2868,15 @@ function MonthView(element, calendar) {
 		t.intervalStart = date.clone().stripTime().startOf('month');
 		t.intervalEnd = t.intervalStart.clone().add('months', 1);
 
-		t.start = t.intervalStart.clone().startOf('week');
-		t.start = t.skipHiddenDays(t.start);
+		t.start = t.intervalStart.clone();
+		t.start = t.skipHiddenDays(t.start); // move past the first week if no visible days
+		t.start.startOf('week');
+		t.start = t.skipHiddenDays(t.start); // move past the first invisible days of the week
 
-		t.end = t.intervalEnd.clone().add('days', (7 - t.intervalEnd.weekday()) % 7);
-		t.end = t.skipHiddenDays(t.end, -1, true);
+		t.end = t.intervalEnd.clone();
+		t.end = t.skipHiddenDays(t.end, -1, true); // move in from the last week if no visible days
+		t.end.add('days', (7 - t.end.weekday()) % 7); // move to end of week if not already
+		t.end = t.skipHiddenDays(t.end, -1, true); // move in from the last invisible days of the week
 
 		var rowCnt = Math.ceil( // need to ceil in case there are hidden days
 			t.end.diff(t.start, 'weeks', true) // returnfloat=true
@@ -4044,7 +4171,7 @@ function AgendaView(element, calendar, viewName) {
 			var date = cellToDate(0, col);
 			var match = this.parentNode.className.match(/fc-slot(\d+)/); // TODO: maybe use data
 			if (match) {
-				var slotIndex = parseInt(match[1]);
+				var slotIndex = parseInt(match[1], 10);
 				date.add(minTime + slotIndex * slotDuration);
 				date = calendar.rezoneDate(date);
 				trigger(
@@ -4196,6 +4323,9 @@ function AgendaView(element, calendar, viewName) {
 	}
 
 
+	// NOTE: the row index of these "cells" doesn't correspond to the slot index, but rather the "snap" index
+
+
 	function getIsCellAllDay(cell) { // TODO: remove because mom.hasTime() from realCellToDate() is better
 		return opt('allDaySlot') && !cell.row;
 	}
@@ -4203,14 +4333,14 @@ function AgendaView(element, calendar, viewName) {
 
 	function realCellToDate(cell) { // ugh "real" ... but blame it on our abuse of the "cell" system
 		var date = cellToDate(0, cell.col);
-		var slotIndex = cell.row;
+		var snapIndex = cell.row;
 
 		if (opt('allDaySlot')) {
-			slotIndex--;
+			snapIndex--;
 		}
 
-		if (slotIndex >= 0) {
-			date.time(moment.duration(minTime + slotIndex * slotDuration));
+		if (snapIndex >= 0) {
+			date.time(moment.duration(minTime + snapIndex * snapDuration));
 			date = calendar.rezoneDate(date);
 		}
 
@@ -4472,7 +4602,6 @@ function AgendaEventRenderer() {
 	var getMaxTime = t.getMaxTime;
 	var calendar = t.calendar;
 	var formatDate = calendar.formatDate;
-	var formatRange = calendar.formatRange;
 	var getEventEnd = calendar.getEventEnd;
 
 
@@ -4776,15 +4905,8 @@ function AgendaEventRenderer() {
 				"'" +
 			">" +
 			"<div class='fc-event-inner'>" +
-			"<div class='fc-event-time'>";
-
-		if (event.end) {
-			html += htmlEscape(formatRange(event.start, event.end, opt('timeFormat')));
-		}else{
-			html += htmlEscape(formatDate(event.start, opt('timeFormat')));
-		}
-
-		html +=
+			"<div class='fc-event-time'>" +
+			htmlEscape(t.getEventTimeText(event)) +
 			"</div>" +
 			"<div class='fc-event-title'>" +
 			htmlEscape(event.title || '') +
@@ -4843,7 +4965,7 @@ function AgendaEventRenderer() {
 			revertDuration: opt('dragRevertDuration'),
 			start: function(ev, ui) {
 
-				trigger('eventDragStart', eventElement, event, ev, ui);
+				trigger('eventDragStart', eventElement[0], event, ev, ui);
 				hideEvents(event, eventElement);
 				origWidth = eventElement.width();
 
@@ -4895,7 +5017,7 @@ function AgendaEventRenderer() {
 			stop: function(ev, ui) {
 				hoverListener.stop();
 				clearOverlays();
-				trigger('eventDragStop', eventElement, event, ev, ui);
+				trigger('eventDragStop', eventElement[0], event, ev, ui);
 
 				if (revert) { // hasn't moved or is out of bounds (draggable has already reverted)
 					
@@ -4915,7 +5037,7 @@ function AgendaEventRenderer() {
 					}
 
 					eventDrop(
-						this, // el
+						eventElement[0],
 						event,
 						eventStart,
 						ev,
@@ -4965,7 +5087,7 @@ function AgendaEventRenderer() {
 			revertDuration: opt('dragRevertDuration'),
 			start: function(ev, ui) {
 
-				trigger('eventDragStart', eventElement, event, ev, ui);
+				trigger('eventDragStart', eventElement[0], event, ev, ui);
 				hideEvents(event, eventElement);
 
 				coordinateGrid.build();
@@ -5049,11 +5171,11 @@ function AgendaEventRenderer() {
 			stop: function(ev, ui) {
 
 				clearOverlays();
-				trigger('eventDragStop', eventElement, event, ev, ui);
+				trigger('eventDragStop', eventElement[0], event, ev, ui);
 
 				if (isInBounds && (isAllDay || dayDelta || snapDelta)) { // changed!
 					eventDrop(
-						this, // el
+						eventElement[0],
 						event,
 						eventStart,
 						ev,
@@ -5099,15 +5221,12 @@ function AgendaEventRenderer() {
 		}
 
 		function updateTimeText() {
-			var text;
 			if (eventStart) { // must of had a state change
-				if (event.end) {
-					text = formatRange(eventStart, eventEnd, opt('timeFormat'));
-				}
-				else {
-					text = formatDate(eventStart, opt('timeFormat'));
-				}
-				timeElement.text(text);
+				timeElement.text(
+					t.getEventTimeText(eventStart, event.end ? eventEnd : null)
+					//                                       ^
+					// only display the new end if there was an old end
+				);
 			}
 		}
 
@@ -5133,7 +5252,7 @@ function AgendaEventRenderer() {
 			start: function(ev, ui) {
 				snapDelta = prevSnapDelta = 0;
 				hideEvents(event, eventElement);
-				trigger('eventResizeStart', this, event, ev, ui);
+				trigger('eventResizeStart', eventElement[0], event, ev, ui);
 			},
 			resize: function(ev, ui) {
 				// don't rely on ui.size.height, doesn't take grid into account
@@ -5141,25 +5260,21 @@ function AgendaEventRenderer() {
 				if (snapDelta != prevSnapDelta) {
 					eventEnd = getEventEnd(event).add(snapDuration * snapDelta);
 					var text;
-					if (snapDelta || event.end) {
-						text = formatRange(
-							event.start,
-							eventEnd,
-							opt('timeFormat')
-						);
+					if (snapDelta) { // has there been a change?
+						text = t.getEventTimeText(event.start, eventEnd);
 					}
 					else {
-						text = formatDate(event.start, opt('timeFormat'));
+						text = t.getEventTimeText(event); // the original time text
 					}
 					timeElement.text(text);
 					prevSnapDelta = snapDelta;
 				}
 			},
 			stop: function(ev, ui) {
-				trigger('eventResizeStop', this, event, ev, ui);
+				trigger('eventResizeStop', eventElement[0], event, ev, ui);
 				if (snapDelta) {
 					eventResize(
-						this,
+						eventElement[0],
 						event,
 						eventEnd,
 						ev,
@@ -5549,7 +5664,32 @@ function View(element, calendar, viewName) {
 			}
 		}
 	}
-	
+
+
+	// Compute the text that should be displayed on an event's element.
+	// Based off the settings of the view.
+	// Given either an event object or two arguments: a start and end date (which can be null)
+	t.getEventTimeText = function(event) {
+		var start;
+		var end;
+
+		if (arguments.length === 2) {
+			start = arguments[0];
+			end = arguments[1];
+		}
+		else {
+			start = event.start;
+			end = event.end;
+		}
+
+		if (end && opt('displayEventEnd')) {
+			return calendar.formatRange(start, end, opt('timeFormat'));
+		}
+		else {
+			return calendar.formatDate(start, opt('timeFormat'));
+		}
+	};
+
 	
 	
 	/* Event Modification Reporting
@@ -5557,14 +5697,15 @@ function View(element, calendar, viewName) {
 
 	
 	function eventDrop(el, event, newStart, ev, ui) {
-		var undoMutation = calendar.mutateEvent(event, newStart, null);
+		var mutateResult = calendar.mutateEvent(event, newStart, null);
 
 		trigger(
 			'eventDrop',
 			el,
 			event,
+			mutateResult.dateDelta,
 			function() {
-				undoMutation();
+				mutateResult.undo();
 				reportEventChange(event._id);
 			},
 			ev,
@@ -5576,14 +5717,15 @@ function View(element, calendar, viewName) {
 
 
 	function eventResize(el, event, newEnd, ev, ui) {
-		var undoMutation = calendar.mutateEvent(event, null, newEnd);
+		var mutateResult = calendar.mutateEvent(event, null, newEnd);
 
 		trigger(
 			'eventResize',
 			el,
 			event,
+			mutateResult.durationDelta,
 			function() {
-				undoMutation();
+				mutateResult.undo();
 				reportEventChange(event._id);
 			},
 			ev,
@@ -5910,7 +6052,6 @@ function DayEventRenderer() {
 	var dayOffsetToCellOffset = t.dayOffsetToCellOffset;
 	var calendar = t.calendar;
 	var getEventEnd = calendar.getEventEnd;
-	var formatDate = calendar.formatDate;
 
 
 	// Render `events` onto the calendar, attach mouse event handlers, and call the `eventAfterRender` callback for each.
@@ -6142,9 +6283,7 @@ function DayEventRenderer() {
 		if (!event.allDay && segment.isStart) {
 			html +=
 				"<span class='fc-event-time'>" +
-				htmlEscape(
-					formatDate(event.start, opt('timeFormat'))
-				) +
+				htmlEscape(t.getEventTimeText(event)) +
 				"</span>";
 		}
 		html +=
@@ -6445,7 +6584,7 @@ function DayEventRenderer() {
 			opacity: opt('dragOpacity'),
 			revertDuration: opt('dragRevertDuration'),
 			start: function(ev, ui) {
-				trigger('eventDragStart', eventElement, event, ev, ui);
+				trigger('eventDragStart', eventElement[0], event, ev, ui);
 				hideEvents(event, eventElement);
 				hoverListener.start(function(cell, origCell, rowDelta, colDelta) {
 					eventElement.draggable('option', 'revert', !cell || !rowDelta && !colDelta);
@@ -6468,10 +6607,10 @@ function DayEventRenderer() {
 			stop: function(ev, ui) {
 				hoverListener.stop();
 				clearOverlays();
-				trigger('eventDragStop', eventElement, event, ev, ui);
+				trigger('eventDragStop', eventElement[0], event, ev, ui);
 				if (dayDelta) {
 					eventDrop(
-						this, // el
+						eventElement[0],
 						event,
 						eventStart,
 						ev,
@@ -6523,7 +6662,7 @@ function DayEventRenderer() {
 			$('body')
 				.css('cursor', direction + '-resize')
 				.one('mouseup', mouseup);
-			trigger('eventResizeStart', this, event, ev);
+			trigger('eventResizeStart', element[0], event, ev, {}); // {} is dummy jqui event
 			hoverListener.start(function(cell, origCell) {
 				if (cell) {
 
@@ -6569,17 +6708,18 @@ function DayEventRenderer() {
 			}, ev);
 			
 			function mouseup(ev) {
-				trigger('eventResizeStop', this, event, ev);
+				trigger('eventResizeStop', element[0], event, ev, {}); // {} is dummy jqui event
 				$('body').css('cursor', '');
 				hoverListener.stop();
 				clearOverlays();
 
 				if (dayDelta) {
 					eventResize(
-						this, // el
+						element[0],
 						event,
 						eventEnd,
-						ev
+						ev,
+						{} // dummy jqui event
 					);
 					// event redraw will clear helpers
 				}
@@ -6648,6 +6788,7 @@ function SelectionManager() {
 	t.unselect = unselect;
 	t.reportSelection = reportSelection;
 	t.daySelectionMousedown = daySelectionMousedown;
+	t.selectionManagerDestroy = destroy;
 	
 	
 	// imports
@@ -6666,16 +6807,18 @@ function SelectionManager() {
 
 	// unselectAuto
 	if (opt('selectable') && opt('unselectAuto')) {
-		// TODO: unbind on destroy
-		$(document).mousedown(function(ev) {
-			var ignore = opt('unselectCancel');
-			if (ignore) {
-				if ($(ev.target).parents(ignore).length) { // could be optimized to stop after first match
-					return;
-				}
+		$(document).on('mousedown', documentMousedown);
+	}
+
+
+	function documentMousedown(ev) {
+		var ignore = opt('unselectCancel');
+		if (ignore) {
+			if ($(ev.target).parents(ignore).length) { // could be optimized to stop after first match
+				return;
 			}
-			unselect(ev);
-		});
+		}
+		unselect(ev);
 	}
 	
 
@@ -6693,6 +6836,7 @@ function SelectionManager() {
 		renderSelection(start, end);
 		reportSelection(start, end);
 	}
+	// TODO: better date normalization. see notes in automated test
 	
 	
 	function unselect(ev) {
@@ -6745,6 +6889,11 @@ function SelectionManager() {
 				}
 			});
 		}
+	}
+
+
+	function destroy() {
+		$(document).off('mousedown', documentMousedown);
 	}
 
 
