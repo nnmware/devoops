@@ -1030,7 +1030,7 @@ td.beauty-hover {
   color: #d44950;
 }
 .radio, .checkbox, .radio-inline, .checkbox-inline {
-  position: relative;
+  position: relative; padding-left: 20px;
 }
 .radio label, .checkbox label, .radio-inline label, .checkbox-inline label {
   font-weight: normal;
