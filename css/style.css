@@ -1614,38 +1614,6 @@ td.beauty-hover {
 #simple_gallery a.fancybox img:hover {
   box-shadow: 0 0 10px #C7C7C7;
 }
-.justifiedGallery {
-  overflow: hidden;
-  width: 100%;
-}
-.jg-row {
-  position: relative;
-  white-space: nowrap;
-}
-.justifiedGallery .jg-image {
-  position: absolute;
-  display: inline-block;
-  vertical-align: top;
-  margin-left: 0;
-}
-.justifiedGallery .jg-image a {
-  text-decoration: none;
-}
-.justifiedGallery .jg-image img {
-  border: none;
-}
-.justifiedGallery .jg-image-label {
-  white-space: normal;
-  font: normal 12px arial;
-  background: #000;
-  color: #fff;
-  position: absolute;
-  left: 0;
-  right: 0;
-  padding: 5px 5px 10px 8px;
-  text-align: left;
-  opacity: 0;
-}
 .ex-tooltip {
   position: absolute;
   display: none;
