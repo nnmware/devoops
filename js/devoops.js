@@ -109,11 +109,11 @@ function LoadDataTablesScripts(callback){
 }
 //
 //  Dynamically load Widen FineUploader
-//  homepage: https://github.com/Widen/fine-uploader  v5.0.1 license - GPL3
+//  homepage: https://github.com/Widen/fine-uploader  v5.0.5 license - GPL3
 //
 function LoadFineUploader(callback){
 	if (!$.fn.fineuploader){
-		$.getScript('plugins/fineuploader/jquery.fineuploader-5.0.1.min.js', callback);
+		$.getScript('plugins/fineuploader/jquery.fineuploader-5.0.5.min.js', callback);
 	}
 	else {
 		if (callback && typeof(callback) === "function") {
@@ -124,7 +124,7 @@ function LoadFineUploader(callback){
 //
 //  Dynamically load xCharts plugin
 //  homepage: http://tenxer.github.io/xcharts/ v0.3.0 license - MIT
-//  Required D3 plugin http://d3js.org/ v3.4.1 license - MIT
+//  Required D3 plugin http://d3js.org/ v3.4.11 license - MIT
 //
 function LoadXChartScript(callback){
 	function LoadXChart(){
@@ -132,7 +132,7 @@ function LoadXChartScript(callback){
 	}
 	function LoadD3Script(){
 		if (!$.fn.d3){
-			$.getScript('plugins/d3/d3.v3.min.js', LoadXChart)
+			$.getScript('plugins/d3/d3.min.js', LoadXChart)
 		}
 		else {
 			LoadXChart();

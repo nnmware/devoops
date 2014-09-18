@@ -9,20 +9,23 @@ GIT- https://github.com/devoopsme/devoops
 
 Used plugins (all plugins licensed under appropriate license of authors)
 
-jQuery-Knob http://anthonyterrien.com/knob/ (MIT or GPL)  1.2.8
-D3 http://d3js.org/ 3.4.1 AS IS
-Select2 https://github.com/ivaynberg/select2  3.4.5 GPL2
-Bootstrap Validator https://github.com/nghuuphuoc/bootstrapvalidator 0.2.3 MIT
-TinyMCE http://www.tinymce.com 4.0.16 GPL2
-jQuery Timepicker http://trentrichardson.com/examples/timepicker/ 1.4.3 MIT
-xCharts http://tenxer.github.io/xcharts/ 0.3.0 AS IS
+Twitter Bootstrap http://getbootstrap.com 3.2.0
+Bootstrap Validator https://github.com/nghuuphuoc/bootstrapvalidator 0.5.2-dev MIT
+D3 http://d3js.org/ 3.4.11 AS IS
+Datatables  http://datatables.net 1.10.3-dev GPL or BSD
 Fancybox http://fancyapps.com/fancybox/ 2.1.5 ?
-Widen FineUploader https://github.com/Widen/fine-uploader  (GPL3) v 5.0.1
-Datatables  http://datatables.net 1.9.4 GPL or BSD
-jQuery-UI 1.10.4
-Twitter Bootstrap http://getbootstrap.com 3.1.0
-Flot www.flotcharts.org  0.8.2 AS IS
-Fullcalendar http://arshaw.com/fullcalendar 2.0.0beta MIT
-Moment http://momentjs.com/ 2.5.1 MIT
-Justified Gallery https://github.com/miromannino/Justified-Gallery 2.1 Creative Commons 3.0
-Morris Charts http://www.oesmith.co.uk/morris.js/ v0.4.3 MIT
+Widen FineUploader https://github.com/Widen/fine-uploader  (GPL3) v 5.0.5
+jQuery-Knob http://anthonyterrien.com/knob/ (MIT or GPL)  1.2.11
+Flot www.flotcharts.org  0.8.3 AS IS
+Select2 https://github.com/ivaynberg/select2  3.5.1 GPL2
+Fullcalendar http://arshaw.com/fullcalendar 2.1.1 MIT
+jQuery 2.1.1 http://jquery.com
+jQuery-UI 1.11.1
+jQuery Timepicker http://trentrichardson.com/examples/timepicker/ 1.5.0 MIT
+Justified Gallery https://github.com/miromannino/Justified-Gallery 3.2.0 Creative Commons 3.0
+Moment http://momentjs.com/ 2.8.3 MIT
+Morris Charts http://morrisjs.github.io/morris.js/ v0.5.1 MIT
+RaphaelJS http://raphaeljs.com/ 2.1.2 MIT
+jQuery Sparkline http://omnipotent.net/jquery.sparkline/ 2.1.2 BSD
+TinyMCE http://www.tinymce.com 4.1.5 GPL2
+xCharts http://tenxer.github.io/xcharts/ 0.3.0 AS IS

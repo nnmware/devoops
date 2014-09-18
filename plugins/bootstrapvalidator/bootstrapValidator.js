@@ -2,11 +2,15 @@
  * BootstrapValidator (http://bootstrapvalidator.com)
  * The best jQuery plugin to validate form fields. Designed to use with Bootstrap 3
  *
- * @version     v0.5.0, built on 2014-07-14 4:31:02 PM
+ * @version     v0.5.2-dev, built on 2014-09-18 8:09:53 AM
  * @author      https://twitter.com/nghuuphuoc
  * @copyright   (c) 2013 - 2014 Nguyen Huu Phuoc
  * @license     MIT
  */
+if (typeof jQuery === 'undefined') {
+    throw new Error('BootstrapValidator\'s JavaScript requires jQuery');
+}
+
 (function($) {
     var BootstrapValidator = function(form, options) {
         this.$form   = $(form);
@@ -14,6 +18,7 @@
 
         this.$invalidFields = $([]);    // Array of invalid fields
         this.$submitButton  = null;     // The submit button which is clicked to submit form
+        this.$hiddenButton  = null;
 
         // Validating status
         this.STATUS_NOT_VALIDATED = 'NOT_VALIDATED';
@@ -53,22 +58,36 @@
         _init: function() {
             var that    = this,
                 options = {
-                    excluded:       this.$form.attr('data-bv-excluded'),
-                    trigger:        this.$form.attr('data-bv-trigger'),
-                    message:        this.$form.attr('data-bv-message'),
                     container:      this.$form.attr('data-bv-container'),
-                    group:          this.$form.attr('data-bv-group'),
-                    submitButtons:  this.$form.attr('data-bv-submitbuttons'),
-                    threshold:      this.$form.attr('data-bv-threshold'),
-                    live:           this.$form.attr('data-bv-live'),
-                    onSuccess:      this.$form.attr('data-bv-onsuccess'),
-                    onError:        this.$form.attr('data-bv-onerror'),
-                    fields:         {},
+                    events: {
+                        formInit:         this.$form.attr('data-bv-events-form-init'),
+                        formError:        this.$form.attr('data-bv-events-form-error'),
+                        formSuccess:      this.$form.attr('data-bv-events-form-success'),
+                        fieldAdded:       this.$form.attr('data-bv-events-field-added'),
+                        fieldRemoved:     this.$form.attr('data-bv-events-field-removed'),
+                        fieldInit:        this.$form.attr('data-bv-events-field-init'),
+                        fieldError:       this.$form.attr('data-bv-events-field-error'),
+                        fieldSuccess:     this.$form.attr('data-bv-events-field-success'),
+                        fieldStatus:      this.$form.attr('data-bv-events-field-status'),
+                        validatorError:   this.$form.attr('data-bv-events-validator-error'),
+                        validatorSuccess: this.$form.attr('data-bv-events-validator-success')
+                    },
+                    excluded:       this.$form.attr('data-bv-excluded'),
                     feedbackIcons: {
                         valid:      this.$form.attr('data-bv-feedbackicons-valid'),
                         invalid:    this.$form.attr('data-bv-feedbackicons-invalid'),
                         validating: this.$form.attr('data-bv-feedbackicons-validating')
-                    }
+                    },
+                    group:          this.$form.attr('data-bv-group'),
+                    live:           this.$form.attr('data-bv-live'),
+                    message:        this.$form.attr('data-bv-message'),
+                    onError:        this.$form.attr('data-bv-onerror'),
+                    onSuccess:      this.$form.attr('data-bv-onsuccess'),
+                    submitButtons:  this.$form.attr('data-bv-submitbuttons'),
+                    threshold:      this.$form.attr('data-bv-threshold'),
+                    trigger:        this.$form.attr('data-bv-trigger'),
+                    verbose:        this.$form.attr('data-bv-verbose'),
+                    fields:         {}
                 };
 
             this.$form
@@ -98,23 +117,49 @@
                     });
 
             this.options = $.extend(true, this.options, options);
+
+            // When pressing Enter on any field in the form, the first submit button will do its job.
+            // The form then will be submitted.
+            // I create a first hidden submit button
+            this.$hiddenButton = $('<button/>')
+                                    .attr('type', 'submit')
+                                    .prependTo(this.$form)
+                                    .addClass('bv-hidden-submit')
+                                    .css({ display: 'none', width: 0, height: 0 });
+
+            this.$form
+                .on('click.bv', '[type="submit"]', function(e) {
+                    // #746: Check if the button click handler returns false
+                    if (!e.isDefaultPrevented()) {
+                        var $target = $(e.target),
+                            // The button might contain HTML tag
+                            $button = $target.is('[type="submit"]') ? $target.eq(0) : $target.parent('[type="submit"]').eq(0);
+
+                        // Don't perform validation when clicking on the submit button/input
+                        // which aren't defined by the 'submitButtons' option
+                        if (that.options.submitButtons && !$button.is(that.options.submitButtons) && !$button.is(that.$hiddenButton)) {
+                            that.$form.off('submit.bv').submit();
+                        }
+                    }
+                });
+
             for (var field in this.options.fields) {
                 this._initField(field);
             }
 
-            this.$form.trigger($.Event('init.form.bv'), {
+            this.$form.trigger($.Event(this.options.events.formInit), {
                 bv: this,
                 options: this.options
             });
 
             // Prepare the events
             if (this.options.onSuccess) {
-                this.$form.on('success.form.bv', function(e) {
+                this.$form.on(this.options.events.formSuccess, function(e) {
                     $.fn.bootstrapValidator.helpers.call(that.options.onSuccess, [e]);
                 });
             }
             if (this.options.onError) {
-                this.$form.on('error.form.bv', function(e) {
+                this.$form.on(this.options.events.formError, function(e) {
                     $.fn.bootstrapValidator.helpers.call(that.options.onError, [e]);
                 });
             }
@@ -165,17 +210,18 @@
             }
 
             var opts = {
+                    container:     $field.attr('data-bv-container'),
                     excluded:      $field.attr('data-bv-excluded'),
                     feedbackIcons: $field.attr('data-bv-feedbackicons'),
-                    trigger:       $field.attr('data-bv-trigger'),
-                    message:       $field.attr('data-bv-message'),
-                    container:     $field.attr('data-bv-container'),
                     group:         $field.attr('data-bv-group'),
-                    selector:      $field.attr('data-bv-selector'),
-                    threshold:     $field.attr('data-bv-threshold'),
+                    message:       $field.attr('data-bv-message'),
+                    onError:       $field.attr('data-bv-onerror'),
                     onStatus:      $field.attr('data-bv-onstatus'),
                     onSuccess:     $field.attr('data-bv-onsuccess'),
-                    onError:       $field.attr('data-bv-onerror'),
+                    selector:      $field.attr('data-bv-selector'),
+                    threshold:     $field.attr('data-bv-threshold'),
+                    trigger:       $field.attr('data-bv-trigger'),
+                    verbose:       $field.attr('data-bv-verbose'),
                     validators:    validators
                 },
                 emptyOptions    = $.isEmptyObject(opts),        // Check if the field options are set using HTML attributes
@@ -209,15 +255,15 @@
                     break;
             }
 
+            // We don't need to validate non-existing fields
+            if (fields.length === 0) {
+                return;
+            }
+
             if (this.options.fields[field] === null || this.options.fields[field].validators === null) {
                 return;
             }
 
-            // We don't need to validate non-existing fields
-            if (fields.length === 0) {
-                delete this.options.fields[field];
-                return;
-            }
             var validatorName;
             for (validatorName in this.options.fields[field].validators) {
                 if (!$.fn.bootstrapValidator.validators[validatorName]) {
@@ -243,7 +289,7 @@
                     group     = this.options.fields[field].group || this.options.group,
                     $parent   = $field.parents(group),
                     // Allow user to indicate where the error messages are shown
-                    container = this.options.fields[field].container || this.options.container,
+                    container = ('function' === typeof (this.options.fields[field].container || this.options.container)) ? (this.options.fields[field].container || this.options.container).call(this, $field, this) : (this.options.fields[field].container || this.options.container),
                     $message  = (container && container !== 'tooltip' && container !== 'popover') ? $(container) : this._getMessageContainer($field, group);
 
                 if (container && container !== 'tooltip' && container !== 'popover') {
@@ -258,7 +304,7 @@
                 $field.off(events).on(events, function() {
                     that.updateStatus($(this), that.STATUS_NOT_VALIDATED);
                 });
-
+                
                 // Create help block elements for showing the error messages
                 $field.data('bv.messages', $message);
                 for (validatorName in this.options.fields[field].validators) {
@@ -275,16 +321,9 @@
                             .appendTo($message);
                     }
 
-                    // Prepare the validator events
-                    if (this.options.fields[field].validators[validatorName].onSuccess) {
-                        $field.on('success.validator.bv', function(e, data) {
-                             $.fn.bootstrapValidator.helpers.call(that.options.fields[field].validators[validatorName].onSuccess, [e, data]);
-                        });
-                    }
-                    if (this.options.fields[field].validators[validatorName].onError) {
-                        $field.on('error.validator.bv', function(e, data) {
-                             $.fn.bootstrapValidator.helpers.call(that.options.fields[field].validators[validatorName].onError, [e, data]);
-                        });
+                    // Init the validator
+                    if ('function' === typeof $.fn.bootstrapValidator.validators[validatorName].init) {
+                        $.fn.bootstrapValidator.validators[validatorName].init(this, $field, this.options.fields[field].validators[validatorName]);
                     }
                 }
 
@@ -295,46 +334,103 @@
                     && this.options.feedbackIcons.validating && this.options.feedbackIcons.invalid && this.options.feedbackIcons.valid
                     && (!updateAll || i === total - 1))
                 {
-                    $parent.removeClass('has-success').removeClass('has-error').addClass('has-feedback');
+                    // $parent.removeClass('has-success').removeClass('has-error').addClass('has-feedback');
+                    // Keep error messages which are populated from back-end
+                    $parent.addClass('has-feedback');
                     var $icon = $('<i/>')
                                     .css('display', 'none')
                                     .addClass('form-control-feedback')
                                     .attr('data-bv-icon-for', field)
-                                    // Place it after the label containing the checkbox/radio
-                                    // so when clicking the icon, it doesn't effect to the checkbox/radio element
-                                    .insertAfter(('checkbox' === type || 'radio' === type) ? $field.parent() : $field);
+                                    .insertAfter($field);
+
+                    // Place it after the container of checkbox/radio
+                    // so when clicking the icon, it doesn't effect to the checkbox/radio element
+                    if ('checkbox' === type || 'radio' === type) {
+                        var $fieldParent = $field.parent();
+                        if ($fieldParent.hasClass(type)) {
+                            $icon.insertAfter($fieldParent);
+                        } else if ($fieldParent.parent().hasClass(type)) {
+                            $icon.insertAfter($fieldParent.parent());
+                        }
+                    }
 
                     // The feedback icon does not render correctly if there is no label
                     // https://github.com/twbs/bootstrap/issues/12873
                     if ($parent.find('label').length === 0) {
-                        $icon.css('top', 0);
+                        $icon.addClass('bv-no-label');
                     }
                     // Fix feedback icons in input-group
                     if ($parent.find('.input-group').length !== 0) {
-                        $icon.css({
-                            'top': 0,
-                            'z-index': 100
-                        }).insertAfter($parent.find('.input-group').eq(0));
+                        $icon.addClass('bv-icon-input-group')
+                             .insertAfter($parent.find('.input-group').eq(0));
+                    }
+                    
+                    if (container) {
+                        $field
+                            // Show tooltip/popover message when field gets focus
+                            .off('focus.bv')
+                            .on('focus.bv', function() {
+                                switch (container) {
+                                    case 'tooltip':
+                                        $icon.tooltip('show');
+                                        break;
+                                    case 'popover':
+                                        $icon.popover('show');
+                                        break;
+                                    default:
+                                        break;
+                                }
+                            })
+                            // and hide them when losing focus
+                            .off('blur.bv')
+                            .on('blur.bv', function() {
+                                switch (container) {
+                                    case 'tooltip':
+                                        $icon.tooltip('hide');
+                                        break;
+                                    case 'popover':
+                                        $icon.popover('hide');
+                                        break;
+                                    default:
+                                        break;
+                                }
+                            });
                     }
                 }
             }
 
             // Prepare the events
-            if (this.options.fields[field].onSuccess) {
-                fields.on('success.field.bv', function(e, data) {
-                    $.fn.bootstrapValidator.helpers.call(that.options.fields[field].onSuccess, [e, data]);
+            fields
+                .on(this.options.events.fieldSuccess, function(e, data) {
+                    var onSuccess = that.getOptions(data.field, null, 'onSuccess');
+                    if (onSuccess) {
+                        $.fn.bootstrapValidator.helpers.call(onSuccess, [e, data]);
+                    }
+                })
+                .on(this.options.events.fieldError, function(e, data) {
+                    var onError = that.getOptions(data.field, null, 'onError');
+                    if (onError) {
+                        $.fn.bootstrapValidator.helpers.call(onError, [e, data]);
+                    }
+                })
+                .on(this.options.events.fieldStatus, function(e, data) {
+                    var onStatus = that.getOptions(data.field, null, 'onStatus');
+                    if (onStatus) {
+                        $.fn.bootstrapValidator.helpers.call(onStatus, [e, data]);
+                    }
+                })
+                .on(this.options.events.validatorError, function(e, data) {
+                    var onError = that.getOptions(data.field, data.validator, 'onError');
+                    if (onError) {
+                        $.fn.bootstrapValidator.helpers.call(onError, [e, data]);
+                    }
+                })
+                .on(this.options.events.validatorSuccess, function(e, data) {
+                    var onSuccess = that.getOptions(data.field, data.validator, 'onSuccess');
+                    if (onSuccess) {
+                        $.fn.bootstrapValidator.helpers.call(onSuccess, [e, data]);
+                    }
                 });
-            }
-            if (this.options.fields[field].onError) {
-                fields.on('error.field.bv', function(e, data) {
-                    $.fn.bootstrapValidator.helpers.call(that.options.fields[field].onError, [e, data]);
-                });
-            }
-            if (this.options.fields[field].onStatus) {
-                fields.on('status.field.bv', function(e, data) {
-                    $.fn.bootstrapValidator.helpers.call(that.options.fields[field].onStatus, [e, data]);
-                });
-            }
 
             // Set live mode
             events = $.map(trigger, function(item) {
@@ -357,7 +453,7 @@
                     break;
             }
 
-            fields.trigger($.Event('init.field.bv'), {
+            fields.trigger($.Event(this.options.events.fieldInit), {
                 bv: this,
                 field: field,
                 element: fields
@@ -425,7 +521,7 @@
          */
         _submit: function() {
             var isValid   = this.isValid(),
-                eventType = isValid ? 'success.form.bv' : 'error.form.bv',
+                eventType = isValid ? this.options.events.formSuccess : this.options.events.formError,
                 e         = $.Event(eventType);
 
             this.$form.trigger(e);
@@ -581,17 +677,18 @@
                     bv: this,
                     field: field,
                     element: $field,
-                    validator: validatorName
+                    validator: validatorName,
+                    result: $field.data('bv.response.' + validatorName)
                 };
 
             // Trigger an event after given validator completes
             if (validatorName) {
                 switch ($field.data('bv.result.' + validatorName)) {
                     case this.STATUS_INVALID:
-                        $field.trigger($.Event('error.validator.bv'), data);
+                        $field.trigger($.Event(this.options.events.validatorError), data);
                         break;
                     case this.STATUS_VALID:
-                        $field.trigger($.Event('success.validator.bv'), data);
+                        $field.trigger($.Event(this.options.events.validatorSuccess), data);
                         break;
                     default:
                         break;
@@ -619,14 +716,14 @@
                 // Remove from the list of invalid fields
                 this.$invalidFields = this.$invalidFields.not($field);
 
-                $field.trigger($.Event('success.field.bv'), data);
+                $field.trigger($.Event(this.options.events.fieldSuccess), data);
             }
             // If all validators are completed and there is at least one validator which doesn't pass
             else if (counter[this.STATUS_NOT_VALIDATED] === 0 && counter[this.STATUS_VALIDATING] === 0 && counter[this.STATUS_INVALID] > 0) {
                 // Add to the list of invalid fields
                 this.$invalidFields = this.$invalidFields.add($field);
 
-                $field.trigger($.Event('error.field.bv'), data);
+                $field.trigger($.Event(this.options.events.fieldError), data);
             }
         },
 
@@ -649,6 +746,37 @@
 
             return this._cacheFields[field];
         },
+
+        /**
+         * Get the field options
+         *
+         * @param {String|jQuery} [field] The field name or field element. If it is not set, the method returns the form options
+         * @param {String} [validator] The name of validator. It null, the method returns form options
+         * @param {String} [option] The option name
+         * @return {String|Object}
+         */
+        getOptions: function(field, validator, option) {
+            if (!field) {
+                return this.options;
+            }
+            if ('object' === typeof field) {
+                field = field.attr('data-bv-field');
+            }
+            if (!this.options.fields[field]) {
+                return null;
+            }
+
+            var options = this.options.fields[field];
+            if (!validator) {
+                return option ? options[option] : options;
+            }
+            if (!options.validators || !options.validators[validator]) {
+                return null;
+            }
+
+            return option ? options.validators[validator][option] : options.validators[validator];
+        },
+
 
         /**
          * Disable/enable submit buttons
@@ -707,7 +835,7 @@
                     break;
             }
 
-            if (this.options.fields[field] && this.options.fields[field].enabled === false) {
+            if (fields.length === 0 || (this.options.fields[field] && this.options.fields[field].enabled === false)) {
                 return this;
             }
 
@@ -716,6 +844,7 @@
                 total      = ('radio' === type || 'checkbox' === type) ? 1 : fields.length,
                 updateAll  = ('radio' === type || 'checkbox' === type),
                 validators = this.options.fields[field].validators,
+                verbose    = this.options.fields[field].verbose === 'true' || this.options.fields[field].verbose === true || this.options.verbose === 'true' || this.options.verbose === true,
                 validatorName,
                 validateResult;
 
@@ -725,15 +854,22 @@
                     continue;
                 }
 
+                var stop = false;
                 for (validatorName in validators) {
                     if ($field.data('bv.dfs.' + validatorName)) {
                         $field.data('bv.dfs.' + validatorName).reject();
                     }
+                    if (stop) {
+                        break;
+                    }
 
                     // Don't validate field if it is already done
                     var result = $field.data('bv.result.' + validatorName);
-                    if (result === this.STATUS_VALID || result === this.STATUS_INVALID || validators[validatorName].enabled === false) {
+                    if (result === this.STATUS_VALID || result === this.STATUS_INVALID) {
                         this._onFieldValidated($field, validatorName);
+                        continue;
+                    } else if (validators[validatorName].enabled === false) {
+                        this.updateStatus(updateAll ? field : $field, this.STATUS_VALID, validatorName);
                         continue;
                     }
 
@@ -745,29 +881,39 @@
                         this.updateStatus(updateAll ? field : $field, this.STATUS_VALIDATING, validatorName);
                         $field.data('bv.dfs.' + validatorName, validateResult);
 
-                        validateResult.done(function($f, v, isValid, message) {
+                        validateResult.done(function($f, v, response) {
                             // v is validator name
-                            $f.removeData('bv.dfs.' + v);
-                            if (message) {
-                                that.updateMessage($f, v, message);
+                            $f.removeData('bv.dfs.' + v).data('bv.response.' + v, response);
+                            if (response.message) {
+                                that.updateMessage($f, v, response.message);
                             }
 
-                            that.updateStatus(updateAll ? $f.attr('data-bv-field') : $f, isValid ? that.STATUS_VALID : that.STATUS_INVALID, v);
+                            that.updateStatus(updateAll ? $f.attr('data-bv-field') : $f, response.valid ? that.STATUS_VALID : that.STATUS_INVALID, v);
 
-                            if (isValid && that._submitIfValid === true) {
+                            if (response.valid && that._submitIfValid === true) {
                                 // If a remote validator returns true and the form is ready to submit, then do it
                                 that._submit();
+                            } else if (!response.valid && !verbose) {
+                                stop = true;
                             }
                         });
                     }
                     // ... or object { valid: true/false, message: 'dynamic message' }
                     else if ('object' === typeof validateResult && validateResult.valid !== undefined && validateResult.message !== undefined) {
+                        $field.data('bv.response.' + validatorName, validateResult);
                         this.updateMessage(updateAll ? field : $field, validatorName, validateResult.message);
                         this.updateStatus(updateAll ? field : $field, validateResult.valid ? this.STATUS_VALID : this.STATUS_INVALID, validatorName);
+                        if (!validateResult.valid && !verbose) {
+                            break;
+                        }
                     }
                     // ... or a boolean value
                     else if ('boolean' === typeof validateResult) {
+                        $field.data('bv.response.' + validatorName, validateResult);
                         this.updateStatus(updateAll ? field : $field, validateResult ? this.STATUS_VALID : this.STATUS_INVALID, validatorName);
+                        if (!validateResult && !verbose) {
+                            break;
+                        }
                     }
                 }
             }
@@ -845,7 +991,7 @@
                     $allErrors   = $message.find('.help-block[data-bv-validator][data-bv-for="' + field + '"]'),
                     $errors      = validatorName ? $allErrors.filter('[data-bv-validator="' + validatorName + '"]') : $allErrors,
                     $icon        = $parent.find('.form-control-feedback[data-bv-icon-for="' + field + '"]'),
-                    container    = this.options.fields[field].container || this.options.container,
+                    container    = ('function' === typeof (this.options.fields[field].container || this.options.container)) ? (this.options.fields[field].container || this.options.container).call(this, $field, this) : (this.options.fields[field].container || this.options.container),
                     isValidField = null;
 
                 // Update status
@@ -933,22 +1079,24 @@
                     case ($icon && 'tooltip' === container):
                         (isValidField === false)
                                 ? $icon.css('cursor', 'pointer').tooltip('destroy').tooltip({
+                                    container: 'body',
                                     html: true,
                                     placement: 'top',
                                     title: $allErrors.filter('[data-bv-result="' + that.STATUS_INVALID + '"]').eq(0).html()
                                 })
-                                : $icon.css('cursor', '').tooltip('destroy');
+                                : $icon.tooltip('hide');
                         break;
                     // ... or popover
                     case ($icon && 'popover' === container):
                         (isValidField === false)
                                 ? $icon.css('cursor', 'pointer').popover('destroy').popover({
+                                    container: 'body',
                                     content: $allErrors.filter('[data-bv-result="' + that.STATUS_INVALID + '"]').eq(0).html(),
                                     html: true,
                                     placement: 'top',
                                     trigger: 'hover click'
                                 })
-                                : $icon.css('cursor', '').popover('destroy');
+                                : $icon.popover('hide');
                         break;
                     default:
                         (status === this.STATUS_INVALID) ? $errors.show() : $errors.hide();
@@ -956,7 +1104,7 @@
                 }
 
                 // Trigger an event
-                $field.trigger($.Event('status.field.bv'), {
+                $field.trigger($.Event(this.options.events.fieldStatus), {
                     bv: this,
                     field: field,
                     element: $field,
@@ -1057,15 +1205,9 @@
                 var $f = map[field];
                 if ($f.data('bv.messages')
                       .find('.help-block[data-bv-validator][data-bv-for="' + field + '"]')
-                      .filter(function() {
-                          var v = $(this).attr('data-bv-validator'),
-                              f = $(this).attr('data-bv-for');
-                          return (that.options.fields[f].validators[v].enabled !== false
-                                && $f.data('bv.result.' + v) && $f.data('bv.result.' + v) !== that.STATUS_VALID);
-                      })
-                      .length !== 0)
+                      .filter('[data-bv-result="' + this.STATUS_INVALID +'"]')
+                      .length > 0)
                 {
-                    // The field is not valid
                     return false;
                 }
             }
@@ -1163,36 +1305,6 @@
         },
 
         /**
-         * Get the field options
-         *
-         * @param {String|jQuery} [field] The field name or field element. If it is not set, the method returns the form options
-         * @param {String} [validator] The name of validator. It null, the method returns form options
-         * @param {String} [option] The option name
-         * @return {String|Object}
-         */
-        getOptions: function(field, validator, option) {
-            if (!field) {
-                return this.options;
-            }
-            if ('object' === typeof field) {
-                field = field.attr('data-bv-field');
-            }
-            if (!this.options.fields[field]) {
-                return null;
-            }
-
-            var options = this.options.fields[field];
-            if (!validator) {
-                return options;
-            }
-            if (!options.validators || !options.validators[validator]) {
-                return null;
-            }
-
-            return option ? options.validators[validator][option] : options.validators[validator];
-        },
-
-        /**
          * Update the option of a specific validator
          *
          * @param {String|jQuery} field The field name or field element
@@ -1258,7 +1370,7 @@
 
             this.disableSubmitButtons(false);
             // Trigger an event
-            this.$form.trigger($.Event('added.field.bv'), {
+            this.$form.trigger($.Event(this.options.events.fieldAdded), {
                 field: field,
                 element: fields,
                 options: this.options.fields[field]
@@ -1314,7 +1426,7 @@
 
             this.disableSubmitButtons(false);
             // Trigger an event
-            this.$form.trigger($.Event('removed.field.bv'), {
+            this.$form.trigger($.Event(this.options.events.fieldRemoved), {
                 field: field,
                 element: fields
             });
@@ -1464,7 +1576,7 @@
                 }
                 // ... return value of callback
                 else {
-                    return $.fn.bootstrapValidator.helpers.call(option, [value, this, $field]);
+                    return $.fn.bootstrapValidator.helpers.call(option, [value, this, $field]) || option;
                 }
             }
 
@@ -1476,10 +1588,9 @@
          * It will remove all error messages, feedback icons and turn off the events
          */
         destroy: function() {
-            var field, fields, $field, validator, $icon, container, group;
+            var field, fields, $field, validator, $icon, group;
             for (field in this.options.fields) {
                 fields    = this.getFieldElements(field);
-                container = this.options.fields[field].container || this.options.container,
                 group     = this.options.fields[field].group || this.options.group;
                 for (var i = 0; i < fields.length; i++) {
                     $field = fields.eq(i);
@@ -1500,6 +1611,7 @@
                     // Remove feedback icons, tooltip/popover container
                     $icon = $field.parents(group).find('i[data-bv-icon-for="' + field + '"]');
                     if ($icon) {
+                        var container = ('function' === typeof (this.options.fields[field].container || this.options.container)) ? (this.options.fields[field].container || this.options.container).call(this, $field, this) : (this.options.fields[field].container || this.options.container);
                         switch (container) {
                             case 'tooltip':
                                 $icon.tooltip('destroy').remove();
@@ -1517,20 +1629,28 @@
                         if ($field.data('bv.dfs.' + validator)) {
                             $field.data('bv.dfs.' + validator).reject();
                         }
-                        $field.removeData('bv.result.' + validator).removeData('bv.dfs.' + validator);
+                        $field.removeData('bv.result.' + validator)
+                              .removeData('bv.response.' + validator)
+                              .removeData('bv.dfs.' + validator);
+
+                        // Destroy the validator
+                        if ('function' === typeof $.fn.bootstrapValidator.validators[validator].destroy) {
+                            $.fn.bootstrapValidator.validators[validator].destroy(this, $field, this.options.fields[field].validators[validator]);
+                        }
                     }
                 }
             }
 
-            // Enable submit buttons
-            this.disableSubmitButtons(false);
+            this.disableSubmitButtons(false);   // Enable submit buttons
+            this.$hiddenButton.remove();        // Remove the hidden button
 
             this.$form
                 .removeClass(this.options.elementClass)
                 .off('.bv')
                 .removeData('bootstrapValidator')
                 // Remove generated hidden elements
-                .find('[data-bv-submit-hidden]').remove();
+                .find('[data-bv-submit-hidden]').remove().end()
+                .find('[type="submit"]').off('click.bv');
         }
     };
 
@@ -1638,7 +1758,31 @@
         live: 'enabled',
 
         // Map the field name with validator rules
-        fields: null
+        fields: null,
+
+        // Use custom event name to avoid window.onerror being invoked by jQuery
+        // See https://github.com/nghuuphuoc/bootstrapvalidator/issues/630
+        events: {
+            formInit: 'init.form.bv',
+            formError: 'error.form.bv',
+            formSuccess: 'success.form.bv',
+            fieldAdded: 'added.field.bv',
+            fieldRemoved: 'removed.field.bv',
+            fieldInit: 'init.field.bv',
+            fieldError: 'error.field.bv',
+            fieldSuccess: 'success.field.bv',
+            fieldStatus: 'status.field.bv',
+            validatorError: 'error.validator.bv',
+            validatorSuccess: 'success.validator.bv'
+        },
+        
+        // Whether to be verbose when validating a field or not.
+        // Possible values:
+        // - true:  when a field has multiple validators, all of them will be checked, and respectively - if errors occur in
+        //          multiple validators, all of them will be displayed to the user
+        // - false: when a field has multiple validators, validation for this field will be terminated upon the first encountered error.
+        //          Thus, only the very first error message related to this field will be displayed to the user
+        verbose: true
     };
 
     // Available validators
@@ -1673,7 +1817,8 @@
                 for (var i = 0; i < ns.length; i++) {
                     context = context[ns[i]];
                 }
-                return context[func].apply(this, args);
+
+                return (typeof context[func] === 'undefined') ? null : context[func].apply(this, args);
             }
         },
 
@@ -1709,6 +1854,9 @@
          */
         date: function(year, month, day, notInFuture) {
             if (isNaN(year) || isNaN(month) || isNaN(day)) {
+                return false;
+            }
+            if (day.length > 2 || month.length > 2 || year.length > 4) {
                 return false;
             }
 
@@ -1876,10 +2024,12 @@
             if (value === '') {
                 return true;
             }
+            if (!$.isNumeric(value)) {
+                return false;
+            }
 
             var min = $.isNumeric(options.min) ? options.min : validator.getDynamicOption($field, options.min),
                 max = $.isNumeric(options.max) ? options.max : validator.getDynamicOption($field, options.max);
-
             value = parseFloat(value);
 			return (options.inclusive === true || options.inclusive === undefined)
                     ? {
@@ -1890,6 +2040,35 @@
                         valid: value > min  && value <  max,
                         message: $.fn.bootstrapValidator.helpers.format(options.message || $.fn.bootstrapValidator.i18n.between.notInclusive, [min, max])
                     };
+        }
+    };
+}(window.jQuery));
+;(function($) {
+    $.fn.bootstrapValidator.validators.blank = {
+        /**
+         * Placeholder validator that can be used to display a custom validation message
+         * returned from the server
+         * Example:
+         *
+         * (1) a "blank" validator is applied to an input field.
+         * (2) data is entered via the UI that is unable to be validated client-side.
+         * (3) server returns a 400 with JSON data that contains the field that failed
+         *     validation and an associated message.
+         * (4) ajax 400 call handler does the following:
+         *
+         *      bv.updateMessage(field, 'blank', errorMessage);
+         *      bv.updateStatus(field, 'INVALID');
+         *
+         * @see https://github.com/nghuuphuoc/bootstrapvalidator/issues/542
+         * @see https://github.com/nghuuphuoc/bootstrapvalidator/pull/666
+         * @param {BootstrapValidator} validator The validator plugin instance
+         * @param {jQuery} $field Field element
+         * @param {Object} options Can consist of the following keys:
+         * - message: The invalid message
+         * @returns {Boolean}
+         */
+        validate: function(validator, $field, options) {
+            return true;
         }
     };
 }(window.jQuery));
@@ -1917,19 +2096,20 @@
          *          // $field is the field element
          *      }
          * - message: The invalid message
-         * @returns {Boolean|Deferred}
+         * @returns {Deferred}
          */
         validate: function(validator, $field, options) {
-            var value = $field.val();
+            var value  = $field.val(),
+                dfd    = new $.Deferred(),
+                result = { valid: true };
 
             if (options.callback) {
-                var dfd      = new $.Deferred(),
-                    response = $.fn.bootstrapValidator.helpers.call(options.callback, [value, validator, $field]);
-                dfd.resolve($field, 'callback', 'boolean' === typeof response ? response : response.valid, 'object' === typeof response && response.message ? response.message : null);
-                return dfd;
+                var response = $.fn.bootstrapValidator.helpers.call(options.callback, [value, validator, $field]);
+                result = ('boolean' === typeof response) ? { valid: response } :  response;
             }
 
-            return true;
+            dfd.resolve($field, 'callback', result);
+            return dfd;
         }
     };
 }(window.jQuery));
@@ -2313,6 +2493,11 @@
 
             options.format = options.format || 'MM/DD/YYYY';
 
+            // #683: Force the format to YYYY-MM-DD as the default browser behaviour when using type="date" attribute
+            if ($field.attr('type') === 'date') {
+                options.format = 'YYYY-MM-DD';
+            }
+
             var formats    = options.format.split(' '),
                 dateFormat = formats[0],
                 timeFormat = (formats.length > 1) ? formats[1] : null,
@@ -2345,7 +2530,7 @@
                 month = date[$.inArray('MM', dateFormat)],
                 day   = date[$.inArray('DD', dateFormat)];
 
-            if (!year || !month || !day) {
+            if (!year || !month || !day || year.length !== 4) {
                 return false;
             }
 
@@ -2365,24 +2550,33 @@
 
                 // Validate seconds
                 if (seconds) {
+                    if (isNaN(seconds) || seconds.length > 2) {
+                        return false;
+                    }
                     seconds = parseInt(seconds, 10);
-                    if (isNaN(seconds) || seconds < 0 || seconds > 60) {
+                    if (seconds < 0 || seconds > 60) {
                         return false;
                     }
                 }
 
                 // Validate hours
                 if (hours) {
+                    if (isNaN(hours) || hours.length > 2) {
+                        return false;
+                    }
                     hours = parseInt(hours, 10);
-                    if (isNaN(hours) || hours < 0 || hours >= 24 || (amOrPm && hours > 12)) {
+                    if (hours < 0 || hours >= 24 || (amOrPm && hours > 12)) {
                         return false;
                     }
                 }
 
                 // Validate minutes
                 if (minutes) {
+                    if (isNaN(minutes) || minutes.length > 2) {
+                        return false;
+                    }
                     minutes = parseInt(minutes, 10);
-                    if (isNaN(minutes) || minutes < 0 || minutes > 59) {
+                    if (minutes < 0 || minutes > 59) {
                         return false;
                     }
                 }
@@ -2420,17 +2614,24 @@
                 return true;
             }
 
-            var compareWith = validator.getFieldElements(options.field);
-            if (compareWith === null) {
-                return true;
+            var fields  = options.field.split(','),
+                isValid = true;
+
+            for (var i = 0; i < fields.length; i++) {
+                var compareWith = validator.getFieldElements(fields[i]);
+                if (compareWith == null || compareWith.length === 0) {
+                    continue;
+                }
+
+                var compareValue = compareWith.val();
+                if (value === compareValue) {
+                    isValid = false;
+                } else if (compareValue !== '') {
+                    validator.updateStatus(compareWith, validator.STATUS_VALID, 'different');
+                }
             }
 
-            if (value !== compareWith.val()) {
-                validator.updateStatus(options.field, validator.STATUS_VALID, 'different');
-                return true;
-            } else {
-                return false;
-            }
+            return isValid;
         }
     };
 }(window.jQuery));
@@ -2504,6 +2705,12 @@
     });
 
     $.fn.bootstrapValidator.validators.emailAddress = {
+        html5Attributes: {
+            message: 'message',
+            multiple: 'multiple',
+            separator: 'separator'
+        },
+
         enableByHtml5: function($field) {
             return ('email' === $field.attr('type'));
         },
@@ -2514,6 +2721,8 @@
          * @param {BootstrapValidator} validator Validate plugin instance
          * @param {jQuery} $field Field element
          * @param {Object} [options]
+         * - multiple: Allow multiple email addresses, separated by a comma or semicolon; default is false.
+         * - separator: Regex for character or characters expected as separator between addresses; default is comma /[,;]/, i.e. comma or semicolon.
          * @returns {Boolean}
          */
         validate: function(validator, $field, options) {
@@ -2524,8 +2733,56 @@
 
             // Email address regular expression
             // http://stackoverflow.com/questions/46155/validate-email-address-in-javascript
-            var emailRegExp = /^(([^<>()[\]\\.,;:\s@\"]+(\.[^<>()[\]\\.,;:\s@\"]+)*)|(\".+\"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
-            return emailRegExp.test(value);
+            var emailRegExp   = /^(([^<>()[\]\\.,;:\s@\"]+(\.[^<>()[\]\\.,;:\s@\"]+)*)|(\".+\"))@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/,
+                allowMultiple = options.multiple === true || options.multiple === 'true';
+
+            if (allowMultiple) {
+                var separator = options.separator || /[,;]/,
+                    addresses = this._splitEmailAddresses(value, separator);
+
+                for (var i = 0; i < addresses.length; i++) {
+                    if (!emailRegExp.test(addresses[i])) {
+                        return false;
+                    }
+                }
+
+                return true;
+            } else {
+                return emailRegExp.test(value);
+            }
+        },
+
+        _splitEmailAddresses: function(emailAddresses, separator) {
+            var quotedFragments     = emailAddresses.split(/"/),
+                quotedFragmentCount = quotedFragments.length,
+                emailAddressArray   = [],
+                nextEmailAddress    = '';
+
+            for (var i = 0; i < quotedFragmentCount; i++) {
+                if (i % 2 === 0) {
+                    var splitEmailAddressFragments     = quotedFragments[i].split(separator),
+                        splitEmailAddressFragmentCount = splitEmailAddressFragments.length;
+
+                    if (splitEmailAddressFragmentCount === 1) {
+                        nextEmailAddress += splitEmailAddressFragments[0];
+                    } else {
+                        emailAddressArray.push(nextEmailAddress + splitEmailAddressFragments[0]);
+
+                        for (var j = 1; j < splitEmailAddressFragmentCount - 1; j++) {
+                            emailAddressArray.push(splitEmailAddressFragments[j]);
+                        }
+                        nextEmailAddress = splitEmailAddressFragments[splitEmailAddressFragmentCount - 1];
+                    }
+                } else {
+                    nextEmailAddress += '"' + quotedFragments[i];
+                    if (i < quotedFragmentCount - 1) {
+                        nextEmailAddress += '"';
+                    }
+                }
+            }
+
+            emailAddressArray.push(nextEmailAddress);
+            return emailAddressArray;
         }
     };
 }(window.jQuery));
@@ -2538,6 +2795,7 @@
         html5Attributes: {
             extension: 'extension',
             maxsize: 'maxSize',
+            minsize: 'minSize',
             message: 'message',
             type: 'type'
         },
@@ -2550,6 +2808,7 @@
          * @param {Object} options Can consist of the following keys:
          * - extension: The allowed extensions, separated by a comma
          * - maxSize: The maximum size in bytes
+         * - minSize: the minimum size in bytes
          * - message: The invalid message
          * - type: The allowed MIME type, separated by a comma
          * @returns {Boolean}
@@ -2570,7 +2829,12 @@
                 var files = $field.get(0).files,
                     total = files.length;
                 for (var i = 0; i < total; i++) {
-                    // Check file size
+                    // Check the minSize
+                    if (options.minSize && files[i].size < parseInt(options.minSize, 10)) {
+                        return false;
+                    }
+                    
+                    // Check the maxSize
                     if (options.maxSize && files[i].size > parseInt(options.maxSize, 10)) {
                         return false;
                     }
@@ -2582,7 +2846,7 @@
                     }
 
                     // Check file type
-                    if (types && $.inArray(files[i].type.toLowerCase(), types) === -1) {
+                    if (files[i].type && types && $.inArray(files[i].type.toLowerCase(), types) === -1) {
                         return false;
                     }
                 }
@@ -2612,8 +2876,9 @@
         },
 
         enableByHtml5: function($field) {
-            var min = $field.attr('min');
-            if (min) {
+            var type = $field.attr('type'),
+                min  = $field.attr('min');
+            if (min && type !== 'date') {
                 return {
                     value: min
                 };
@@ -2643,9 +2908,11 @@
             if (value === '') {
                 return true;
             }
+            if (!$.isNumeric(value)) {
+                return false;
+            }
 
             var compareTo = $.isNumeric(options.value) ? options.value : validator.getDynamicOption($field, options.value);
-
             value = parseFloat(value);
 			return (options.inclusive === true || options.inclusive === undefined)
                     ? {
@@ -2775,10 +3042,10 @@
             CR: 'Costa Rica',
             CV: 'Cape Verde',
             CY: 'Cyprus',
-            CZ: 'Czech Republic',
+            CZ: 'Czech',
             DE: 'Germany',
             DK: 'Denmark',
-            DO: 'Dominican Republic',
+            DO: 'Dominica',
             DZ: 'Algeria',
             EE: 'Estonia',
             ES: 'Spain',
@@ -2820,7 +3087,7 @@
             NO: 'Norway',
             PK: 'Pakistan',
             PL: 'Poland',
-            PS: 'Palestinian',
+            PS: 'Palestine',
             PT: 'Portugal',
             QA: 'Qatar',
             RO: 'Romania',
@@ -2846,85 +3113,85 @@
         // http://www.swift.com/dsp/resources/documents/IBAN_Registry.pdf
         // http://en.wikipedia.org/wiki/International_Bank_Account_Number#IBAN_formats_by_country
         REGEX: {
-            'AD': 'AD[0-9]{2}[0-9]{4}[0-9]{4}[A-Z0-9]{12}',                     // Andorra
-            'AE': 'AE[0-9]{2}[0-9]{3}[0-9]{16}',                                // United Arab Emirates
-            'AL': 'AL[0-9]{2}[0-9]{8}[A-Z0-9]{16}',                             // Albania
-            'AO': 'AO[0-9]{2}[0-9]{21}',                                        // Angola
-            'AT': 'AT[0-9]{2}[0-9]{5}[0-9]{11}',                                // Austria
-            'AZ': 'AZ[0-9]{2}[A-Z]{4}[A-Z0-9]{20}',                             // Azerbaijan
-            'BA': 'BA[0-9]{2}[0-9]{3}[0-9]{3}[0-9]{8}[0-9]{2}',                 // Bosnia and Herzegovina
-            'BE': 'BE[0-9]{2}[0-9]{3}[0-9]{7}[0-9]{2}',                         // Belgium
-            'BF': 'BF[0-9]{2}[0-9]{23}',                                        // Burkina Faso
-            'BG': 'BG[0-9]{2}[A-Z]{4}[0-9]{4}[0-9]{2}[A-Z0-9]{8}',              // Bulgaria
-            'BH': 'BH[0-9]{2}[A-Z]{4}[A-Z0-9]{14}',                             // Bahrain
-            'BI': 'BI[0-9]{2}[0-9]{12}',                                        // Burundi
-            'BJ': 'BJ[0-9]{2}[A-Z]{1}[0-9]{23}',                                // Benin
-            'BR': 'BR[0-9]{2}[0-9]{8}[0-9]{5}[0-9]{10}[A-Z][A-Z0-9]',           // Brazil
-            'CH': 'CH[0-9]{2}[0-9]{5}[A-Z0-9]{12}',                             // Switzerland
-            'CI': 'CI[0-9]{2}[A-Z]{1}[0-9]{23}',                                // Ivory Coast
-            'CM': 'CM[0-9]{2}[0-9]{23}',                                        // Cameroon
-            'CR': 'CR[0-9]{2}[0-9]{3}[0-9]{14}',                                // Costa Rica
-            'CV': 'CV[0-9]{2}[0-9]{21}',                                        // Cape Verde
-            'CY': 'CY[0-9]{2}[0-9]{3}[0-9]{5}[A-Z0-9]{16}',                     // Cyprus
-            'CZ': 'CZ[0-9]{2}[0-9]{20}',                                        // Czech Republic
-            'DE': 'DE[0-9]{2}[0-9]{8}[0-9]{10}',                                // Germany
-            'DK': 'DK[0-9]{2}[0-9]{14}',                                        // Denmark
-            'DO': 'DO[0-9]{2}[A-Z0-9]{4}[0-9]{20}',                             // Dominican Republic
-            'DZ': 'DZ[0-9]{2}[0-9]{20}',                                        // Algeria
-            'EE': 'EE[0-9]{2}[0-9]{2}[0-9]{2}[0-9]{11}[0-9]{1}',                // Estonia
-            'ES': 'ES[0-9]{2}[0-9]{4}[0-9]{4}[0-9]{1}[0-9]{1}[0-9]{10}',        // Spain
-            'FI': 'FI[0-9]{2}[0-9]{6}[0-9]{7}[0-9]{1}',                         // Finland
-            'FO': 'FO[0-9]{2}[0-9]{4}[0-9]{9}[0-9]{1}',                         // Faroe Islands
-            'FR': 'FR[0-9]{2}[0-9]{5}[0-9]{5}[A-Z0-9]{11}[0-9]{2}',             // France
-            'GB': 'GB[0-9]{2}[A-Z]{4}[0-9]{6}[0-9]{8}',                         // United Kingdom
-            'GE': 'GE[0-9]{2}[A-Z]{2}[0-9]{16}',                                // Georgia
-            'GI': 'GI[0-9]{2}[A-Z]{4}[A-Z0-9]{15}',                             // Gibraltar
-            'GL': 'GL[0-9]{2}[0-9]{4}[0-9]{9}[0-9]{1}',                         // Greenland
-            'GR': 'GR[0-9]{2}[0-9]{3}[0-9]{4}[A-Z0-9]{16}',                     // Greece
-            'GT': 'GT[0-9]{2}[A-Z0-9]{4}[A-Z0-9]{20}',                          // Guatemala
-            'HR': 'HR[0-9]{2}[0-9]{7}[0-9]{10}',                                // Croatia
-            'HU': 'HU[0-9]{2}[0-9]{3}[0-9]{4}[0-9]{1}[0-9]{15}[0-9]{1}',        // Hungary
-            'IE': 'IE[0-9]{2}[A-Z]{4}[0-9]{6}[0-9]{8}',                         // Ireland
-            'IL': 'IL[0-9]{2}[0-9]{3}[0-9]{3}[0-9]{13}',                        // Israel
-            'IR': 'IR[0-9]{2}[0-9]{22}',                                        // Iran
-            'IS': 'IS[0-9]{2}[0-9]{4}[0-9]{2}[0-9]{6}[0-9]{10}',                // Iceland
-            'IT': 'IT[0-9]{2}[A-Z]{1}[0-9]{5}[0-9]{5}[A-Z0-9]{12}',             // Italy
-            'JO': 'JO[0-9]{2}[A-Z]{4}[0-9]{4}[0]{8}[A-Z0-9]{10}',               // Jordan
-            'KW': 'KW[0-9]{2}[A-Z]{4}[0-9]{22}',                                // Kuwait
-            'KZ': 'KZ[0-9]{2}[0-9]{3}[A-Z0-9]{13}',                             // Kazakhstan
-            'LB': 'LB[0-9]{2}[0-9]{4}[A-Z0-9]{20}',                             // Lebanon
-            'LI': 'LI[0-9]{2}[0-9]{5}[A-Z0-9]{12}',                             // Liechtenstein
-            'LT': 'LT[0-9]{2}[0-9]{5}[0-9]{11}',                                // Lithuania
-            'LU': 'LU[0-9]{2}[0-9]{3}[A-Z0-9]{13}',                             // Luxembourg
-            'LV': 'LV[0-9]{2}[A-Z]{4}[A-Z0-9]{13}',                             // Latvia
-            'MC': 'MC[0-9]{2}[0-9]{5}[0-9]{5}[A-Z0-9]{11}[0-9]{2}',             // Monaco
-            'MD': 'MD[0-9]{2}[A-Z0-9]{20}',                                     // Moldova
-            'ME': 'ME[0-9]{2}[0-9]{3}[0-9]{13}[0-9]{2}',                        // Montenegro
-            'MG': 'MG[0-9]{2}[0-9]{23}',                                        // Madagascar
-            'MK': 'MK[0-9]{2}[0-9]{3}[A-Z0-9]{10}[0-9]{2}',                     // Macedonia
-            'ML': 'ML[0-9]{2}[A-Z]{1}[0-9]{23}',                                // Mali
-            'MR': 'MR13[0-9]{5}[0-9]{5}[0-9]{11}[0-9]{2}',                      // Mauritania
-            'MT': 'MT[0-9]{2}[A-Z]{4}[0-9]{5}[A-Z0-9]{18}',                     // Malta
-            'MU': 'MU[0-9]{2}[A-Z]{4}[0-9]{2}[0-9]{2}[0-9]{12}[0-9]{3}[A-Z]{3}',// Mauritius
-            'MZ': 'MZ[0-9]{2}[0-9]{21}',                                        // Mozambique
-            'NL': 'NL[0-9]{2}[A-Z]{4}[0-9]{10}',                                // Netherlands
-            'NO': 'NO[0-9]{2}[0-9]{4}[0-9]{6}[0-9]{1}',                         // Norway
-            'PK': 'PK[0-9]{2}[A-Z]{4}[A-Z0-9]{16}',                             // Pakistan
-            'PL': 'PL[0-9]{2}[0-9]{8}[0-9]{16}',                                // Poland
-            'PS': 'PS[0-9]{2}[A-Z]{4}[A-Z0-9]{21}',                             // Palestinian
-            'PT': 'PT[0-9]{2}[0-9]{4}[0-9]{4}[0-9]{11}[0-9]{2}',                // Portugal
-            'QA': 'QA[0-9]{2}[A-Z]{4}[A-Z0-9]{21}',                             // Qatar
-            'RO': 'RO[0-9]{2}[A-Z]{4}[A-Z0-9]{16}',                             // Romania
-            'RS': 'RS[0-9]{2}[0-9]{3}[0-9]{13}[0-9]{2}',                        // Serbia
-            'SA': 'SA[0-9]{2}[0-9]{2}[A-Z0-9]{18}',                             // Saudi Arabia
-            'SE': 'SE[0-9]{2}[0-9]{3}[0-9]{16}[0-9]{1}',                        // Sweden
-            'SI': 'SI[0-9]{2}[0-9]{5}[0-9]{8}[0-9]{2}',                         // Slovenia
-            'SK': 'SK[0-9]{2}[0-9]{4}[0-9]{6}[0-9]{10}',                        // Slovakia
-            'SM': 'SM[0-9]{2}[A-Z]{1}[0-9]{5}[0-9]{5}[A-Z0-9]{12}',             // San Marino
-            'SN': 'SN[0-9]{2}[A-Z]{1}[0-9]{23}',                                // Senegal
-            'TN': 'TN59[0-9]{2}[0-9]{3}[0-9]{13}[0-9]{2}',                      // Tunisia
-            'TR': 'TR[0-9]{2}[0-9]{5}[A-Z0-9]{1}[A-Z0-9]{16}',                  // Turkey
-            'VG': 'VG[0-9]{2}[A-Z]{4}[0-9]{16}'                                 // Virgin Islands, British
+            AD: 'AD[0-9]{2}[0-9]{4}[0-9]{4}[A-Z0-9]{12}',                       // Andorra
+            AE: 'AE[0-9]{2}[0-9]{3}[0-9]{16}',                                  // United Arab Emirates
+            AL: 'AL[0-9]{2}[0-9]{8}[A-Z0-9]{16}',                               // Albania
+            AO: 'AO[0-9]{2}[0-9]{21}',                                          // Angola
+            AT: 'AT[0-9]{2}[0-9]{5}[0-9]{11}',                                  // Austria
+            AZ: 'AZ[0-9]{2}[A-Z]{4}[A-Z0-9]{20}',                               // Azerbaijan
+            BA: 'BA[0-9]{2}[0-9]{3}[0-9]{3}[0-9]{8}[0-9]{2}',                   // Bosnia and Herzegovina
+            BE: 'BE[0-9]{2}[0-9]{3}[0-9]{7}[0-9]{2}',                           // Belgium
+            BF: 'BF[0-9]{2}[0-9]{23}',                                          // Burkina Faso
+            BG: 'BG[0-9]{2}[A-Z]{4}[0-9]{4}[0-9]{2}[A-Z0-9]{8}',                // Bulgaria
+            BH: 'BH[0-9]{2}[A-Z]{4}[A-Z0-9]{14}',                               // Bahrain
+            BI: 'BI[0-9]{2}[0-9]{12}',                                          // Burundi
+            BJ: 'BJ[0-9]{2}[A-Z]{1}[0-9]{23}',                                  // Benin
+            BR: 'BR[0-9]{2}[0-9]{8}[0-9]{5}[0-9]{10}[A-Z][A-Z0-9]',             // Brazil
+            CH: 'CH[0-9]{2}[0-9]{5}[A-Z0-9]{12}',                               // Switzerland
+            CI: 'CI[0-9]{2}[A-Z]{1}[0-9]{23}',                                  // Ivory Coast
+            CM: 'CM[0-9]{2}[0-9]{23}',                                          // Cameroon
+            CR: 'CR[0-9]{2}[0-9]{3}[0-9]{14}',                                  // Costa Rica
+            CV: 'CV[0-9]{2}[0-9]{21}',                                          // Cape Verde
+            CY: 'CY[0-9]{2}[0-9]{3}[0-9]{5}[A-Z0-9]{16}',                       // Cyprus
+            CZ: 'CZ[0-9]{2}[0-9]{20}',                                          // Czech Republic
+            DE: 'DE[0-9]{2}[0-9]{8}[0-9]{10}',                                  // Germany
+            DK: 'DK[0-9]{2}[0-9]{14}',                                          // Denmark
+            DO: 'DO[0-9]{2}[A-Z0-9]{4}[0-9]{20}',                               // Dominican Republic
+            DZ: 'DZ[0-9]{2}[0-9]{20}',                                          // Algeria
+            EE: 'EE[0-9]{2}[0-9]{2}[0-9]{2}[0-9]{11}[0-9]{1}',                  // Estonia
+            ES: 'ES[0-9]{2}[0-9]{4}[0-9]{4}[0-9]{1}[0-9]{1}[0-9]{10}',          // Spain
+            FI: 'FI[0-9]{2}[0-9]{6}[0-9]{7}[0-9]{1}',                           // Finland
+            FO: 'FO[0-9]{2}[0-9]{4}[0-9]{9}[0-9]{1}',                           // Faroe Islands
+            FR: 'FR[0-9]{2}[0-9]{5}[0-9]{5}[A-Z0-9]{11}[0-9]{2}',               // France
+            GB: 'GB[0-9]{2}[A-Z]{4}[0-9]{6}[0-9]{8}',                           // United Kingdom
+            GE: 'GE[0-9]{2}[A-Z]{2}[0-9]{16}',                                  // Georgia
+            GI: 'GI[0-9]{2}[A-Z]{4}[A-Z0-9]{15}',                               // Gibraltar
+            GL: 'GL[0-9]{2}[0-9]{4}[0-9]{9}[0-9]{1}',                           // Greenland
+            GR: 'GR[0-9]{2}[0-9]{3}[0-9]{4}[A-Z0-9]{16}',                       // Greece
+            GT: 'GT[0-9]{2}[A-Z0-9]{4}[A-Z0-9]{20}',                            // Guatemala
+            HR: 'HR[0-9]{2}[0-9]{7}[0-9]{10}',                                  // Croatia
+            HU: 'HU[0-9]{2}[0-9]{3}[0-9]{4}[0-9]{1}[0-9]{15}[0-9]{1}',          // Hungary
+            IE: 'IE[0-9]{2}[A-Z]{4}[0-9]{6}[0-9]{8}',                           // Ireland
+            IL: 'IL[0-9]{2}[0-9]{3}[0-9]{3}[0-9]{13}',                          // Israel
+            IR: 'IR[0-9]{2}[0-9]{22}',                                          // Iran
+            IS: 'IS[0-9]{2}[0-9]{4}[0-9]{2}[0-9]{6}[0-9]{10}',                  // Iceland
+            IT: 'IT[0-9]{2}[A-Z]{1}[0-9]{5}[0-9]{5}[A-Z0-9]{12}',               // Italy
+            JO: 'JO[0-9]{2}[A-Z]{4}[0-9]{4}[0]{8}[A-Z0-9]{10}',                 // Jordan
+            KW: 'KW[0-9]{2}[A-Z]{4}[0-9]{22}',                                  // Kuwait
+            KZ: 'KZ[0-9]{2}[0-9]{3}[A-Z0-9]{13}',                               // Kazakhstan
+            LB: 'LB[0-9]{2}[0-9]{4}[A-Z0-9]{20}',                               // Lebanon
+            LI: 'LI[0-9]{2}[0-9]{5}[A-Z0-9]{12}',                               // Liechtenstein
+            LT: 'LT[0-9]{2}[0-9]{5}[0-9]{11}',                                  // Lithuania
+            LU: 'LU[0-9]{2}[0-9]{3}[A-Z0-9]{13}',                               // Luxembourg
+            LV: 'LV[0-9]{2}[A-Z]{4}[A-Z0-9]{13}',                               // Latvia
+            MC: 'MC[0-9]{2}[0-9]{5}[0-9]{5}[A-Z0-9]{11}[0-9]{2}',               // Monaco
+            MD: 'MD[0-9]{2}[A-Z0-9]{20}',                                       // Moldova
+            ME: 'ME[0-9]{2}[0-9]{3}[0-9]{13}[0-9]{2}',                          // Montenegro
+            MG: 'MG[0-9]{2}[0-9]{23}',                                          // Madagascar
+            MK: 'MK[0-9]{2}[0-9]{3}[A-Z0-9]{10}[0-9]{2}',                       // Macedonia
+            ML: 'ML[0-9]{2}[A-Z]{1}[0-9]{23}',                                  // Mali
+            MR: 'MR13[0-9]{5}[0-9]{5}[0-9]{11}[0-9]{2}',                        // Mauritania
+            MT: 'MT[0-9]{2}[A-Z]{4}[0-9]{5}[A-Z0-9]{18}',                       // Malta
+            MU: 'MU[0-9]{2}[A-Z]{4}[0-9]{2}[0-9]{2}[0-9]{12}[0-9]{3}[A-Z]{3}',  // Mauritius
+            MZ: 'MZ[0-9]{2}[0-9]{21}',                                          // Mozambique
+            NL: 'NL[0-9]{2}[A-Z]{4}[0-9]{10}',                                  // Netherlands
+            NO: 'NO[0-9]{2}[0-9]{4}[0-9]{6}[0-9]{1}',                           // Norway
+            PK: 'PK[0-9]{2}[A-Z]{4}[A-Z0-9]{16}',                               // Pakistan
+            PL: 'PL[0-9]{2}[0-9]{8}[0-9]{16}',                                  // Poland
+            PS: 'PS[0-9]{2}[A-Z]{4}[A-Z0-9]{21}',                               // Palestinian
+            PT: 'PT[0-9]{2}[0-9]{4}[0-9]{4}[0-9]{11}[0-9]{2}',                  // Portugal
+            QA: 'QA[0-9]{2}[A-Z]{4}[A-Z0-9]{21}',                               // Qatar
+            RO: 'RO[0-9]{2}[A-Z]{4}[A-Z0-9]{16}',                               // Romania
+            RS: 'RS[0-9]{2}[0-9]{3}[0-9]{13}[0-9]{2}',                          // Serbia
+            SA: 'SA[0-9]{2}[0-9]{2}[A-Z0-9]{18}',                               // Saudi Arabia
+            SE: 'SE[0-9]{2}[0-9]{3}[0-9]{16}[0-9]{1}',                          // Sweden
+            SI: 'SI[0-9]{2}[0-9]{5}[0-9]{8}[0-9]{2}',                           // Slovenia
+            SK: 'SK[0-9]{2}[0-9]{4}[0-9]{6}[0-9]{10}',                          // Slovakia
+            SM: 'SM[0-9]{2}[A-Z]{1}[0-9]{5}[0-9]{5}[A-Z0-9]{12}',               // San Marino
+            SN: 'SN[0-9]{2}[A-Z]{1}[0-9]{23}',                                  // Senegal
+            TN: 'TN59[0-9]{2}[0-9]{3}[0-9]{13}[0-9]{2}',                        // Tunisia
+            TR: 'TR[0-9]{2}[0-9]{5}[A-Z0-9]{1}[A-Z0-9]{16}',                    // Turkey
+            VG: 'VG[0-9]{2}[A-Z]{4}[0-9]{16}'                                   // Virgin Islands, British
         },
 
         /**
@@ -2999,33 +3266,35 @@
     $.fn.bootstrapValidator.i18n.id = $.extend($.fn.bootstrapValidator.i18n.id || {}, {
         'default': 'Please enter a valid identification number',
         countryNotSupported: 'The country code %s is not supported',
-        country: 'Please enter a valid %s identification number',
+        country: 'Please enter a valid identification number in %s',
         countries: {
             BA: 'Bosnia and Herzegovina',
-            BG: 'Bulgarian',
-            BR: 'Brazilian',
-            CH: 'Swiss',
-            CL: 'Chilean',
+            BG: 'Bulgaria',
+            BR: 'Brazil',
+            CH: 'Switzerland',
+            CL: 'Chile',
+            CN: 'China',
             CZ: 'Czech',
-            DK: 'Danish',
-            EE: 'Estonian',
-            ES: 'Spanish',
-            FI: 'Finnish',
-            HR: 'Croatian',
-            IE: 'Irish',
+            DK: 'Denmark',
+            EE: 'Estonia',
+            ES: 'Spain',
+            FI: 'Finland',
+            HR: 'Croatia',
+            IE: 'Ireland',
             IS: 'Iceland',
-            LT: 'Lithuanian',
-            LV: 'Latvian',
+            LT: 'Lithuania',
+            LV: 'Latvia',
             ME: 'Montenegro',
-            MK: 'Macedonian',
-            NL: 'Dutch',
-            RO: 'Romanian',
-            RS: 'Serbian',
-            SE: 'Swedish',
-            SI: 'Slovenian',
-            SK: 'Slovak',
+            MK: 'Macedonia',
+            NL: 'Netherlands',
+            RO: 'Romania',
+            RS: 'Serbia',
+            SE: 'Sweden',
+            SI: 'Slovenia',
+            SK: 'Slovakia',
             SM: 'San Marino',
-            ZA: 'South African'
+            TH: 'Thailand',
+            ZA: 'South Africa'
         }
     });
 
@@ -3037,8 +3306,8 @@
 
         // Supported country codes
         COUNTRY_CODES: [
-            'BA', 'BG', 'BR', 'CH', 'CL', 'CZ', 'DK', 'EE', 'ES', 'FI', 'HR', 'IE', 'IS', 'LT', 'LV', 'ME', 'MK', 'NL',
-            'RO', 'RS', 'SE', 'SI', 'SK', 'SM', 'ZA'
+            'BA', 'BG', 'BR', 'CH', 'CL', 'CN', 'CZ', 'DK', 'EE', 'ES', 'FI', 'HR', 'IE', 'IS', 'LT', 'LV', 'ME', 'MK', 'NL',
+            'RO', 'RS', 'SE', 'SI', 'SK', 'SM', 'TH', 'ZA'
         ],
 
         /**
@@ -3311,6 +3580,542 @@
             return sum + '' === value.charAt(8).toUpperCase();
         },
 
+        /**
+         * Validate Chinese citizen identification number
+         *
+         * Rules:
+         * - For current 18-digit system (since 1st Oct 1999, defined by GB11643—1999 national standard):
+         *     - Digit 0-5: Must be a valid administrative division code of China PR.
+         *     - Digit 6-13: Must be a valid YYYYMMDD date of birth. A future date is tolerated.
+         *     - Digit 14-16: Order code, any integer.
+         *     - Digit 17: An ISO 7064:1983, MOD 11-2 checksum.
+         *       Both upper/lower case of X are tolerated.
+         * - For deprecated 15-digit system:
+         *     - Digit 0-5: Must be a valid administrative division code of China PR.
+         *     - Digit 6-11: Must be a valid YYMMDD date of birth, indicating the year of 19XX.
+         *     - Digit 12-14: Order code, any integer.
+         * Lists of valid administrative division codes of China PR can be seen here:
+         * <http://www.stats.gov.cn/tjsj/tjbz/xzqhdm/>
+         * Published and maintained by National Bureau of Statistics of China PR.
+         * NOTE: Current and deprecated codes MUST BOTH be considered valid.
+         * Many Chinese citizens born in once existed administrative divisions!
+         *
+         * @see http://en.wikipedia.org/wiki/Resident_Identity_Card#Identity_card_number
+         * @param {String} value The ID
+         * @returns {Boolean}
+         */
+        _cn: function(value) {
+            // Basic format check (18 or 15 digits, considering X in checksum)
+            value = value.trim();
+            if (!/^\d{15}$/.test(value) && !/^\d{17}[\dXx]{1}$/.test(value)) {
+                return false;
+            }
+            
+            // Check China PR Administrative division code
+            var adminDivisionCodes = {
+                11: {
+                    0: [0],
+                    1: [[0, 9], [11, 17]],
+                    2: [0, 28, 29]
+                },
+                12: {
+                    0: [0],
+                    1: [[0, 16]],
+                    2: [0, 21, 23, 25]
+                },
+                13: {
+                    0: [0],
+                    1: [[0, 5], 7, 8, 21, [23, 33], [81, 85]],
+                    2: [[0, 5], [7, 9], [23, 25], 27, 29, 30, 81, 83],
+                    3: [[0, 4], [21, 24]],
+                    4: [[0, 4], 6, 21, [23, 35], 81],
+                    5: [[0, 3], [21, 35], 81, 82],
+                    6: [[0, 4], [21, 38], [81, 84]],
+                    7: [[0, 3], 5, 6, [21, 33]],
+                    8: [[0, 4], [21, 28]],
+                    9: [[0, 3], [21, 30], [81, 84]],
+                    10: [[0, 3], [22, 26], 28, 81, 82],
+                    11: [[0, 2], [21, 28], 81, 82]
+                },
+                14: {
+                    0: [0],
+                    1: [0, 1, [5, 10], [21, 23], 81],
+                    2: [[0, 3], 11, 12, [21, 27]],
+                    3: [[0, 3], 11, 21, 22],
+                    4: [[0, 2], 11, 21, [23, 31], 81],
+                    5: [[0, 2], 21, 22, 24, 25, 81],
+                    6: [[0, 3], [21, 24]],
+                    7: [[0, 2], [21, 29], 81],
+                    8: [[0, 2], [21, 30], 81, 82],
+                    9: [[0, 2], [21, 32], 81],
+                    10: [[0, 2], [21, 34], 81, 82],
+                    11: [[0, 2], [21, 30], 81, 82],
+                    23: [[0, 3], 22, 23, [25, 30], 32, 33]
+                },
+                15: {
+                    0: [0],
+                    1: [[0, 5], [21, 25]],
+                    2: [[0, 7], [21, 23]],
+                    3: [[0, 4]],
+                    4: [[0, 4], [21, 26], [28, 30]],
+                    5: [[0, 2], [21, 26], 81],
+                    6: [[0, 2], [21, 27]],
+                    7: [[0, 3], [21, 27], [81, 85]],
+                    8: [[0, 2], [21, 26]],
+                    9: [[0, 2], [21, 29], 81],
+                    22: [[0, 2], [21, 24]],
+                    25: [[0, 2], [22, 31]],
+                    26: [[0, 2], [24, 27], [29, 32], 34],
+                    28: [0, 1, [22, 27]],
+                    29: [0, [21, 23]]
+                },
+                21: {
+                    0: [0],
+                    1: [[0, 6], [11, 14], [22, 24], 81],
+                    2: [[0, 4], [11, 13], 24, [81, 83]],
+                    3: [[0, 4], 11, 21, 23, 81],
+                    4: [[0, 4], 11, [21, 23]],
+                    5: [[0, 5], 21, 22],
+                    6: [[0, 4], 24, 81, 82],
+                    7: [[0, 3], 11, 26, 27, 81, 82],
+                    8: [[0, 4], 11, 81, 82],
+                    9: [[0, 5], 11, 21, 22],
+                    10: [[0, 5], 11, 21, 81],
+                    11: [[0, 3], 21, 22],
+                    12: [[0, 2], 4, 21, 23, 24, 81, 82],
+                    13: [[0, 3], 21, 22, 24, 81, 82],
+                    14: [[0, 4], 21, 22, 81]
+                },
+                22: {
+                    0: [0],
+                    1: [[0, 6], 12, 22, [81, 83]],
+                    2: [[0, 4], 11, 21, [81, 84]],
+                    3: [[0, 3], 22, 23, 81, 82],
+                    4: [[0, 3], 21, 22],
+                    5: [[0, 3], 21, 23, 24, 81, 82],
+                    6: [[0, 2], 4, 5, [21, 23], 25, 81],
+                    7: [[0, 2], [21, 24], 81],
+                    8: [[0, 2], 21, 22, 81, 82],
+                    24: [[0, 6], 24, 26]
+                },
+                23: {
+                    0: [0],
+                    1: [[0, 12], 21, [23, 29], [81, 84]],
+                    2: [[0, 8], 21, [23, 25], 27, [29, 31], 81],
+                    3: [[0, 7], 21, 81, 82],
+                    4: [[0, 7], 21, 22],
+                    5: [[0, 3], 5, 6, [21, 24]],
+                    6: [[0, 6], [21, 24]],
+                    7: [[0, 16], 22, 81],
+                    8: [[0, 5], 11, 22, 26, 28, 33, 81, 82],
+                    9: [[0, 4], 21],
+                    10: [[0, 5], 24, 25, 81, [83, 85]],
+                    11: [[0, 2], 21, 23, 24, 81, 82],
+                    12: [[0, 2], [21, 26], [81, 83]],
+                    27: [[0, 4], [21, 23]]
+                },
+                31: {
+                    0: [0],
+                    1: [0, 1, [3, 10], [12, 20]],
+                    2: [0, 30]
+                },
+                32: {
+                    0: [0],
+                    1: [[0, 7], 11, [13, 18], 24, 25],
+                    2: [[0, 6], 11, 81, 82],
+                    3: [[0, 5], 11, 12, [21, 24], 81, 82],
+                    4: [[0, 2], 4, 5, 11, 12, 81, 82],
+                    5: [[0, 9], [81, 85]],
+                    6: [[0, 2], 11, 12, 21, 23, [81, 84]],
+                    7: [0, 1, 3, 5, 6, [21, 24]],
+                    8: [[0, 4], 11, 26, [29, 31]],
+                    9: [[0, 3], [21, 25], 28, 81, 82],
+                    10: [[0, 3], 11, 12, 23, 81, 84, 88],
+                    11: [[0, 2], 11, 12, [81, 83]],
+                    12: [[0, 4], [81, 84]],
+                    13: [[0, 2], 11, [21, 24]]
+                },
+                33: {
+                    0: [0],
+                    1: [[0, 6], [8, 10], 22, 27, 82, 83, 85],
+                    2: [0, 1, [3, 6], 11, 12, 25, 26, [81, 83]],
+                    3: [[0, 4], 22, 24, [26, 29], 81, 82],
+                    4: [[0, 2], 11, 21, 24, [81, 83]],
+                    5: [[0, 3], [21, 23]],
+                    6: [[0, 2], 21, 24, [81, 83]],
+                    7: [[0, 3], 23, 26, 27, [81, 84]],
+                    8: [[0, 3], 22, 24, 25, 81],
+                    9: [[0, 3], 21, 22],
+                    10: [[0, 4], [21, 24], 81, 82],
+                    11: [[0, 2], [21, 27], 81]
+                },
+                34: {
+                    0: [0],
+                    1: [[0, 4], 11, [21, 24], 81],
+                    2: [[0, 4], 7, 8, [21, 23], 25],
+                    3: [[0, 4], 11, [21, 23]],
+                    4: [[0, 6], 21],
+                    5: [[0, 4], 6, [21, 23]],
+                    6: [[0, 4], 21],
+                    7: [[0, 3], 11, 21],
+                    8: [[0, 3], 11, [22, 28], 81],
+                    10: [[0, 4], [21, 24]],
+                    11: [[0, 3], 22, [24, 26], 81, 82],
+                    12: [[0, 4], 21, 22, 25, 26, 82],
+                    13: [[0, 2], [21, 24]],
+                    14: [[0, 2], [21, 24]],
+                    15: [[0, 3], [21, 25]],
+                    16: [[0, 2], [21, 23]],
+                    17: [[0, 2], [21, 23]],
+                    18: [[0, 2], [21, 25], 81]
+                },
+                35: {
+                    0: [0],
+                    1: [[0, 5], 11, [21, 25], 28, 81, 82],
+                    2: [[0, 6], [11, 13]],
+                    3: [[0, 5], 22],
+                    4: [[0, 3], 21, [23, 30], 81],
+                    5: [[0, 5], 21, [24, 27], [81, 83]],
+                    6: [[0, 3], [22, 29], 81],
+                    7: [[0, 2], [21, 25], [81, 84]],
+                    8: [[0, 2], [21, 25], 81],
+                    9: [[0, 2], [21, 26], 81, 82]
+                },
+                36: {
+                    0: [0],
+                    1: [[0, 5], 11, [21, 24]],
+                    2: [[0, 3], 22, 81],
+                    3: [[0, 2], 13, [21, 23]],
+                    4: [[0, 3], 21, [23, 30], 81, 82],
+                    5: [[0, 2], 21],
+                    6: [[0, 2], 22, 81],
+                    7: [[0, 2], [21, 35], 81, 82],
+                    8: [[0, 3], [21, 30], 81],
+                    9: [[0, 2], [21, 26], [81, 83]],
+                    10: [[0, 2], [21, 30]],
+                    11: [[0, 2], [21, 30], 81]
+                },
+                37: {
+                    0: [0],
+                    1: [[0, 5], 12, 13, [24, 26], 81],
+                    2: [[0, 3], 5, [11, 14], [81, 85]],
+                    3: [[0, 6], [21, 23]],
+                    4: [[0, 6], 81],
+                    5: [[0, 3], [21, 23]],
+                    6: [[0, 2], [11, 13], 34, [81, 87]],
+                    7: [[0, 5], 24, 25, [81, 86]],
+                    8: [[0, 2], 11, [26, 32], [81, 83]],
+                    9: [[0, 3], 11, 21, 23, 82, 83],
+                    10: [[0, 2], [81, 83]],
+                    11: [[0, 3], 21, 22],
+                    12: [[0, 3]],
+                    13: [[0, 2], 11, 12, [21, 29]],
+                    14: [[0, 2], [21, 28], 81, 82],
+                    15: [[0, 2], [21, 26], 81],
+                    16: [[0, 2], [21, 26]],
+                    17: [[0, 2], [21, 28]]
+                },
+                41: {
+                    0: [0],
+                    1: [[0, 6], 8, 22, [81, 85]],
+                    2: [[0, 5], 11, [21, 25]],
+                    3: [[0, 7], 11, [22, 29], 81],
+                    4: [[0, 4], 11, [21, 23], 25, 81, 82],
+                    5: [[0, 3], 5, 6, 22, 23, 26, 27, 81],
+                    6: [[0, 3], 11, 21, 22],
+                    7: [[0, 4], 11, 21, [24, 28], 81, 82],
+                    8: [[0, 4], 11, [21, 23], 25, [81, 83]],
+                    9: [[0, 2], 22, 23, [26, 28]],
+                    10: [[0, 2], [23, 25], 81, 82],
+                    11: [[0, 4], [21, 23]],
+                    12: [[0, 2], 21, 22, 24, 81, 82],
+                    13: [[0, 3], [21, 30], 81],
+                    14: [[0, 3], [21, 26], 81],
+                    15: [[0, 3], [21, 28]],
+                    16: [[0, 2], [21, 28], 81],
+                    17: [[0, 2], [21, 29]],
+                    90: [0, 1]
+                },
+                42: {
+                    0: [0],
+                    1: [[0, 7], [11, 17]],
+                    2: [[0, 5], 22, 81],
+                    3: [[0, 3], [21, 25], 81],
+                    5: [[0, 6], [25, 29], [81, 83]],
+                    6: [[0, 2], 6, 7, [24, 26], [82, 84]],
+                    7: [[0, 4]],
+                    8: [[0, 2], 4, 21, 22, 81],
+                    9: [[0, 2], [21, 23], 81, 82, 84],
+                    10: [[0, 3], [22, 24], 81, 83, 87],
+                    11: [[0, 2], [21, 27], 81, 82],
+                    12: [[0, 2], [21, 24], 81],
+                    13: [[0, 3], 21, 81],
+                    28: [[0, 2], 22, 23, [25, 28]],
+                    90: [0, [4, 6], 21]
+                },
+                43: {
+                    0: [0],
+                    1: [[0, 5], 11, 12, 21, 22, 24, 81],
+                    2: [[0, 4], 11, 21, [23, 25], 81],
+                    3: [[0, 2], 4, 21, 81, 82],
+                    4: [0, 1, [5, 8], 12, [21, 24], 26, 81, 82],
+                    5: [[0, 3], 11, [21, 25], [27, 29], 81],
+                    6: [[0, 3], 11, 21, 23, 24, 26, 81, 82],
+                    7: [[0, 3], [21, 26], 81],
+                    8: [[0, 2], 11, 21, 22],
+                    9: [[0, 3], [21, 23], 81],
+                    10: [[0, 3], [21, 28], 81],
+                    11: [[0, 3], [21, 29]],
+                    12: [[0, 2], [21, 30], 81],
+                    13: [[0, 2], 21, 22, 81, 82],
+                    31: [0, 1, [22, 27], 30]
+                },
+                44: {
+                    0: [0],
+                    1: [[0, 7], [11, 16], 83, 84],
+                    2: [[0, 5], 21, 22, 24, 29, 32, 33, 81, 82],
+                    3: [0, 1, [3, 8]],
+                    4: [[0, 4]],
+                    5: [0, 1, [6, 15], 23, 82, 83],
+                    6: [0, 1, [4, 8]],
+                    7: [0, 1, [3, 5], 81, [83, 85]],
+                    8: [[0, 4], 11, 23, 25, [81, 83]],
+                    9: [[0, 3], 23, [81, 83]],
+                    12: [[0, 3], [23, 26], 83, 84],
+                    13: [[0, 3], [22, 24], 81],
+                    14: [[0, 2], [21, 24], 26, 27, 81],
+                    15: [[0, 2], 21, 23, 81],
+                    16: [[0, 2], [21, 25]],
+                    17: [[0, 2], 21, 23, 81],
+                    18: [[0, 3], 21, 23, [25, 27], 81, 82],
+                    19: [0],
+                    20: [0],
+                    51: [[0, 3], 21, 22],
+                    52: [[0, 3], 21, 22, 24, 81],
+                    53: [[0, 2], [21, 23], 81]
+                },
+                45: {
+                    0: [0],
+                    1: [[0, 9], [21, 27]],
+                    2: [[0, 5], [21, 26]],
+                    3: [[0, 5], 11, 12, [21, 32]],
+                    4: [0, 1, [3, 6], 11, [21, 23], 81],
+                    5: [[0, 3], 12, 21],
+                    6: [[0, 3], 21, 81],
+                    7: [[0, 3], 21, 22],
+                    8: [[0, 4], 21, 81],
+                    9: [[0, 3], [21, 24], 81],
+                    10: [[0, 2], [21, 31]],
+                    11: [[0, 2], [21, 23]],
+                    12: [[0, 2], [21, 29], 81],
+                    13: [[0, 2], [21, 24], 81],
+                    14: [[0, 2], [21, 25], 81]
+                },
+                46: {
+                    0: [0],
+                    1: [0, 1, [5, 8]],
+                    2: [0, 1],
+                    3: [0, [21, 23]],
+                    90: [[0, 3], [5, 7], [21, 39]]
+                },
+                50: {
+                    0: [0],
+                    1: [[0, 19]],
+                    2: [0, [22, 38], [40, 43]],
+                    3: [0, [81, 84]]
+                },
+                51: {
+                    0: [0],
+                    1: [0, 1, [4, 8], [12, 15], [21, 24], 29, 31, 32, [81, 84]],
+                    3: [[0, 4], 11, 21, 22],
+                    4: [[0, 3], 11, 21, 22],
+                    5: [[0, 4], 21, 22, 24, 25],
+                    6: [0, 1, 3, 23, 26, [81, 83]],
+                    7: [0, 1, 3, 4, [22, 27], 81],
+                    8: [[0, 2], 11, 12, [21, 24]],
+                    9: [[0, 4], [21, 23]],
+                    10: [[0, 2], 11, 24, 25, 28],
+                    11: [[0, 2], [11, 13], 23, 24, 26, 29, 32, 33, 81],
+                    13: [[0, 4], [21, 25], 81],
+                    14: [[0, 2], [21, 25]],
+                    15: [[0, 3], [21, 29]],
+                    16: [[0, 3], [21, 23], 81],
+                    17: [[0, 3], [21, 25], 81],
+                    18: [[0, 3], [21, 27]],
+                    19: [[0, 3], [21, 23]],
+                    20: [[0, 2], 21, 22, 81],
+                    32: [0, [21, 33]],
+                    33: [0, [21, 38]],
+                    34: [0, 1, [22, 37]]
+                },
+                52: {
+                    0: [0],
+                    1: [[0, 3], [11, 15], [21, 23], 81],
+                    2: [0, 1, 3, 21, 22],
+                    3: [[0, 3], [21, 30], 81, 82],
+                    4: [[0, 2], [21, 25]],
+                    5: [[0, 2], [21, 27]],
+                    6: [[0, 3], [21, 28]],
+                    22: [0, 1, [22, 30]],
+                    23: [0, 1, [22, 28]],
+                    24: [0, 1, [22, 28]],
+                    26: [0, 1, [22, 36]],
+                    27: [[0, 2], 22, 23, [25, 32]]
+                },
+                53: {
+                    0: [0],
+                    1: [[0, 3], [11, 14], 21, 22, [24, 29], 81],
+                    3: [[0, 2], [21, 26], 28, 81],
+                    4: [[0, 2], [21, 28]],
+                    5: [[0, 2], [21, 24]],
+                    6: [[0, 2], [21, 30]],
+                    7: [[0, 2], [21, 24]],
+                    8: [[0, 2], [21, 29]],
+                    9: [[0, 2], [21, 27]],
+                    23: [0, 1, [22, 29], 31],
+                    25: [[0, 4], [22, 32]],
+                    26: [0, 1, [21, 28]],
+                    27: [0, 1, [22, 30]], 28: [0, 1, 22, 23],
+                    29: [0, 1, [22, 32]],
+                    31: [0, 2, 3, [22, 24]],
+                    34: [0, [21, 23]],
+                    33: [0, 21, [23, 25]],
+                    35: [0, [21, 28]]
+                },
+                54: {
+                    0: [0],
+                    1: [[0, 2], [21, 27]],
+                    21: [0, [21, 29], 32, 33],
+                    22: [0, [21, 29], [31, 33]],
+                    23: [0, 1, [22, 38]],
+                    24: [0, [21, 31]],
+                    25: [0, [21, 27]],
+                    26: [0, [21, 27]]
+                },
+                61: {
+                    0: [0],
+                    1: [[0, 4], [11, 16], 22, [24, 26]],
+                    2: [[0, 4], 22],
+                    3: [[0, 4], [21, 24], [26, 31]],
+                    4: [[0, 4], [22, 31], 81],
+                    5: [[0, 2], [21, 28], 81, 82],
+                    6: [[0, 2], [21, 32]],
+                    7: [[0, 2], [21, 30]],
+                    8: [[0, 2], [21, 31]],
+                    9: [[0, 2], [21, 29]],
+                    10: [[0, 2], [21, 26]]
+                },
+                62: {
+                    0: [0],
+                    1: [[0, 5], 11, [21, 23]],
+                    2: [0, 1],
+                    3: [[0, 2], 21],
+                    4: [[0, 3], [21, 23]],
+                    5: [[0, 3], [21, 25]],
+                    6: [[0, 2], [21, 23]],
+                    7: [[0, 2], [21, 25]],
+                    8: [[0, 2], [21, 26]],
+                    9: [[0, 2], [21, 24], 81, 82],
+                    10: [[0, 2], [21, 27]],
+                    11: [[0, 2], [21, 26]],
+                    12: [[0, 2], [21, 28]],
+                    24: [0, 21, [24, 29]],
+                    26: [0, 21, [23, 30]],
+                    29: [0, 1, [21, 27]],
+                    30: [0, 1, [21, 27]]
+                },
+                63: {
+                    0: [0],
+                    1: [[0, 5], [21, 23]],
+                    2: [0, 2, [21, 25]],
+                    21: [0, [21, 23], [26, 28]],
+                    22: [0, [21, 24]],
+                    23: [0, [21, 24]],
+                    25: [0, [21, 25]],
+                    26: [0, [21, 26]],
+                    27: [0, 1, [21, 26]],
+                    28: [[0, 2], [21, 23]]
+                },
+                64: {
+                    0: [0],
+                    1: [0, 1, [4, 6], 21, 22, 81],
+                    2: [[0, 3], 5, [21, 23]],
+                    3: [[0, 3], [21, 24], 81],
+                    4: [[0, 2], [21, 25]],
+                    5: [[0, 2], 21, 22]
+                },
+                65: {
+                    0: [0],
+                    1: [[0, 9], 21],
+                    2: [[0, 5]],
+                    21: [0, 1, 22, 23],
+                    22: [0, 1, 22, 23],
+                    23: [[0, 3], [23, 25], 27, 28],
+                    28: [0, 1, [22, 29]],
+                    29: [0, 1, [22, 29]],
+                    30: [0, 1, [22, 24]], 31: [0, 1, [21, 31]],
+                    32: [0, 1, [21, 27]],
+                    40: [0, 2, 3, [21, 28]],
+                    42: [[0, 2], 21, [23, 26]],
+                    43: [0, 1, [21, 26]],
+                    90: [[0, 4]], 27: [[0, 2], 22, 23]
+                },
+                71: { 0: [0] },
+                81: { 0: [0] },
+                82: { 0: [0] }
+            };
+            
+            var provincial  = parseInt(value.substr(0, 2), 10),
+                prefectural = parseInt(value.substr(2, 2), 10),
+                county      = parseInt(value.substr(4, 2), 10);
+            
+            if (!adminDivisionCodes[provincial] || !adminDivisionCodes[provincial][prefectural]) {
+                return false;
+            }
+            var inRange  = false,
+                rangeDef = adminDivisionCodes[provincial][prefectural];
+            for (var i = 0; i < rangeDef.length; i++) {
+                if (($.isArray(rangeDef[i]) && rangeDef[i][0] <= county && county <= rangeDef[i][1])
+                    || (!$.isArray(rangeDef[i]) && county === rangeDef[i]))
+                {
+                    inRange = true;
+                    break;
+                }
+            }
+
+            if (!inRange) {
+                return false;
+            }
+            
+            // Check date of birth
+            var dob;
+            if (value.length === 18) {
+                dob = value.substr(6, 8);
+            } else /* length == 15 */ { 
+                dob = '19' + value.substr(6, 6);
+            }
+            var year  = parseInt(dob.substr(0, 4), 10),
+                month = parseInt(dob.substr(4, 2), 10),
+                day   = parseInt(dob.substr(6, 2), 10);
+            if (!$.fn.bootstrapValidator.helpers.date(year, month, day)) {
+                return false;
+            }
+            
+            // Check checksum (18-digit system only)
+            if (value.length === 18) {
+                var sum    = 0,
+                    weight = [7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2];
+                for (i = 0; i < 17; i++) {
+                    sum += parseInt(value.charAt(i), 10) * weight[i];
+                }
+                sum = (12 - (sum % 11)) % 11;
+                var checksum = (value.charAt(17).toUpperCase() !== 'X') ? parseInt(value.charAt(17), 10) : 10;
+                return checksum === sum;
+            }
+            
+            return true;
+        },
+        
         /**
          * Validate Czech national identification number (RC)
          * Examples:
@@ -3782,6 +4587,29 @@
         },
 
         /**
+         * Validate Thailand citizen number
+         * Examples:
+         * - Valid: 7145620509547, 3688699975685, 2368719339716
+         * - Invalid: 1100800092310
+         *
+         * @see http://en.wikipedia.org/wiki/National_identification_number#Thailand
+         * @param {String} value The ID
+         * @returns {Boolean}
+         */
+        _th: function(value) {
+            if (value.length !== 13) {
+                return false;
+            }
+
+            var sum = 0;
+            for (var i = 0; i < 12; i++) {
+                sum += parseInt(value.charAt(i), 10) * (13 - i);
+            }
+
+            return (11 - sum % 11) % 10 === parseInt(value.charAt(12), 10);
+        },
+
+        /**
          * Validate South African ID
          * Example:
          * - Valid: 8001015009087
@@ -3837,7 +4665,7 @@
             }
 
             var compareWith = validator.getFieldElements(options.field);
-            if (compareWith === null) {
+            if (compareWith === null || compareWith.length === 0) {
                 return true;
             }
 
@@ -3895,6 +4723,51 @@
     };
 }(window.jQuery));
 ;(function($) {
+    $.fn.bootstrapValidator.i18n.imo = $.extend($.fn.bootstrapValidator.i18n.imo || {}, {
+        'default': 'Please enter a valid IMO number'
+    });
+
+    $.fn.bootstrapValidator.validators.imo = {
+        /**
+         * Validate IMO (International Maritime Organization)
+         * Examples:
+         * - Valid: IMO 8814275, IMO 9176187
+         * - Invalid: IMO 8814274
+         *
+         * @see http://en.wikipedia.org/wiki/IMO_Number
+         * @param {BootstrapValidator} validator The validator plugin instance
+         * @param {jQuery} $field Field element
+         * @param {Object} options Can consist of the following keys:
+         * - message: The invalid message
+         * @returns {Boolean}
+         */
+        validate: function(validator, $field, options) {
+            var value = $field.val();
+            if (value === '') {
+                return true;
+            }
+
+            if (!/^IMO \d{7}$/i.test(value)) {
+                return false;
+            }
+            
+            // Grab just the digits
+            var sum    = 0,
+                digits = value.replace(/^.*(\d{7})$/, '$1');
+            
+            // Go over each char, multiplying by the inverse of it's position
+            // IMO 9176187
+            // (9 * 7) + (1 * 6) + (7 * 5) + (6 * 4) + (1 * 3) + (8 * 2) = 147
+            // Take the last digit of that, that's the check digit (7)
+            for (var i = 6; i >= 1; i--) {
+                sum += (digits.slice((6 - i), -i) * (i + 1));
+            }
+
+            return sum % 10 === parseInt(digits.charAt(6), 10);
+        }
+    };
+}(window.jQuery));
+;(function($) {
     $.fn.bootstrapValidator.i18n.integer = $.extend($.fn.bootstrapValidator.i18n.integer || {}, {
         'default': 'Please enter a valid number'
     });
@@ -3914,6 +4787,10 @@
          * @returns {Boolean}
          */
         validate: function(validator, $field, options) {
+            if (this.enableByHtml5($field) && $field.get(0).validity && $field.get(0).validity.badInput === true) {
+                return false;
+            }
+
             var value = $field.val();
             if (value === '') {
                 return true;
@@ -3954,23 +4831,37 @@
             }
             options = $.extend({}, { ipv4: true, ipv6: true }, options);
 
-            if (options.ipv4) {
-                return {
-                    valid: /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(value),
-                    message: options.message || $.fn.bootstrapValidator.i18n.ip.ipv4
-                };
-            } else if (options.ipv6) {
-                return {
-                    valid: /^\s*((([0-9A-Fa-f]{1,4}:){7}([0-9A-Fa-f]{1,4}|:))|(([0-9A-Fa-f]{1,4}:){6}(:[0-9A-Fa-f]{1,4}|((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){5}(((:[0-9A-Fa-f]{1,4}){1,2})|:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){4}(((:[0-9A-Fa-f]{1,4}){1,3})|((:[0-9A-Fa-f]{1,4})?:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){3}(((:[0-9A-Fa-f]{1,4}){1,4})|((:[0-9A-Fa-f]{1,4}){0,2}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){2}(((:[0-9A-Fa-f]{1,4}){1,5})|((:[0-9A-Fa-f]{1,4}){0,3}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){1}(((:[0-9A-Fa-f]{1,4}){1,6})|((:[0-9A-Fa-f]{1,4}){0,4}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(:(((:[0-9A-Fa-f]{1,4}){1,7})|((:[0-9A-Fa-f]{1,4}){0,5}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:)))(%.+)?\s*$/.test(value),
-                    message: options.message || $.fn.bootstrapValidator.i18n.ip.ipv6
-                };
+            var ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/,
+                ipv6Regex = /^\s*((([0-9A-Fa-f]{1,4}:){7}([0-9A-Fa-f]{1,4}|:))|(([0-9A-Fa-f]{1,4}:){6}(:[0-9A-Fa-f]{1,4}|((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){5}(((:[0-9A-Fa-f]{1,4}){1,2})|:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){4}(((:[0-9A-Fa-f]{1,4}){1,3})|((:[0-9A-Fa-f]{1,4})?:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){3}(((:[0-9A-Fa-f]{1,4}){1,4})|((:[0-9A-Fa-f]{1,4}){0,2}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){2}(((:[0-9A-Fa-f]{1,4}){1,5})|((:[0-9A-Fa-f]{1,4}){0,3}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){1}(((:[0-9A-Fa-f]{1,4}){1,6})|((:[0-9A-Fa-f]{1,4}){0,4}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(:(((:[0-9A-Fa-f]{1,4}){1,7})|((:[0-9A-Fa-f]{1,4}){0,5}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:)))(%.+)?\s*$/,
+                valid     = false,
+                message;
+
+            switch (true) {
+                case (options.ipv4 && !options.ipv6):
+                    valid   = ipv4Regex.test(value);
+                    message = options.message || $.fn.bootstrapValidator.i18n.ip.ipv4;
+                    break;
+
+                case (!options.ipv4 && options.ipv6):
+                    valid   = ipv6Regex.test(value);
+                    message = options.message || $.fn.bootstrapValidator.i18n.ip.ipv6;
+                    break;
+
+                case (options.ipv4 && options.ipv6):
+                /* falls through */
+                default:
+                    valid   = ipv4Regex.test(value) || ipv6Regex.test(value);
+                    message = options.message || $.fn.bootstrapValidator.i18n.ip['default'];
+                    break;
             }
 
-            return false;
+            return {
+                valid: valid,
+                message: message
+            };
         }
     };
-}(window.jQuery));
-;(function($) {
+}(window.jQuery));;(function($) {
     $.fn.bootstrapValidator.i18n.isbn = $.extend($.fn.bootstrapValidator.i18n.isbn || {}, {
         'default': 'Please enter a valid ISBN number'
     });
@@ -4234,8 +5125,9 @@
         },
 
         enableByHtml5: function($field) {
-            var max = $field.attr('max');
-            if (max) {
+            var type = $field.attr('type'),
+                max  = $field.attr('max');
+            if (max && type !== 'date') {
                 return {
                     value: max
                 };
@@ -4265,9 +5157,11 @@
             if (value === '') {
                 return true;
             }
+            if (!$.isNumeric(value)) {
+                return false;
+            }
 
             var compareTo = $.isNumeric(options.value) ? options.value : validator.getDynamicOption($field, options.value);
-
             value = parseFloat(value);
             return (options.inclusive === true || options.inclusive === undefined)
                     ? {
@@ -4307,6 +5201,89 @@
     };
 }(window.jQuery));
 ;(function($) {
+    $.fn.bootstrapValidator.i18n.meid = $.extend($.fn.bootstrapValidator.i18n.meid || {}, {
+        'default': 'Please enter a valid MEID number'
+    });
+
+    $.fn.bootstrapValidator.validators.meid = {
+        /**
+         * Validate MEID (Mobile Equipment Identifier)
+         * Examples:
+         * - Valid: 293608736500703710, 29360-87365-0070-3710, AF0123450ABCDE, AF-012345-0ABCDE
+         * - Invalid: 2936087365007037101
+         *
+         * @see http://en.wikipedia.org/wiki/Mobile_equipment_identifier
+         * @param {BootstrapValidator} validator The validator plugin instance
+         * @param {jQuery} $field Field element
+         * @param {Object} options Can consist of the following keys:
+         * - message: The invalid message
+         * @returns {Boolean}
+         */
+        validate: function(validator, $field, options) {
+            var value = $field.val();
+            if (value === '') {
+                return true;
+            }
+
+            switch (true) {
+                // 14 digit hex representation (no check digit)
+                case /^[0-9A-F]{15}$/i.test(value):
+                // 14 digit hex representation + dashes or spaces (no check digit)
+                case /^[0-9A-F]{2}[- ][0-9A-F]{6}[- ][0-9A-F]{6}[- ][0-9A-F]$/i.test(value):
+                // 18 digit decimal representation (no check digit)
+                case /^\d{19}$/.test(value):
+                // 18 digit decimal representation + dashes or spaces (no check digit)
+                case /^\d{5}[- ]\d{5}[- ]\d{4}[- ]\d{4}[- ]\d$/.test(value):
+                    // Grab the check digit
+                    var cd = value.charAt(value.length - 1);
+
+                    // Strip any non-hex chars
+                    value = value.replace(/[- ]/g, '');
+
+                    // If it's all digits, luhn base 10 is used
+                    if (value.match(/^\d*$/i)) {
+                        return $.fn.bootstrapValidator.helpers.luhn(value);
+                    }
+
+                    // Strip the check digit
+                    value = value.slice(0, -1);
+
+                    // Get every other char, and double it
+                    var cdCalc = '';
+                    for (var i = 1; i <= 13; i += 2) {
+                        cdCalc += (parseInt(value.charAt(i), 16) * 2).toString(16);
+                    }
+
+                    // Get the sum of each char in the string
+                    var sum = 0;
+                    for (i = 0; i < cdCalc.length; i++) {
+                        sum += parseInt(cdCalc.charAt(i), 16);
+                    }
+
+                    // If the last digit of the calc is 0, the check digit is 0
+                    return (sum % 10 === 0)
+                            ? (cd === '0')
+                            // Subtract it from the next highest 10s number (64 goes to 70) and subtract the sum
+                            // Double it and turn it into a hex char
+                            : (cd === ((Math.floor((sum + 10) / 10) * 10 - sum) * 2).toString(16));
+
+                // 14 digit hex representation (no check digit)
+                case /^[0-9A-F]{14}$/i.test(value):
+                // 14 digit hex representation + dashes or spaces (no check digit)
+                case /^[0-9A-F]{2}[- ][0-9A-F]{6}[- ][0-9A-F]{6}$/i.test(value):
+                // 18 digit decimal representation (no check digit)
+                case /^\d{18}$/.test(value):
+                // 18 digit decimal representation + dashes or spaces (no check digit)
+                case /^\d{5}[- ]\d{5}[- ]\d{4}[- ]\d{4}$/.test(value):
+                    return true;
+
+                default:
+                    return false;
+            }
+        }
+    };
+}(window.jQuery));
+;(function($) {
     $.fn.bootstrapValidator.i18n.notEmpty = $.extend($.fn.bootstrapValidator.i18n.notEmpty || {}, {
         'default': 'Please enter a value'
     });
@@ -4332,6 +5309,10 @@
                             .getFieldElements($field.attr('data-bv-field'))
                             .filter(':checked')
                             .length > 0;
+            }
+
+            if ('number' === type && $field.get(0).validity && $field.get(0).validity.badInput === true) {
+                return true;
             }
 
             return $.trim($field.val()) !== '';
@@ -4364,6 +5345,10 @@
          * @returns {Boolean}
          */
         validate: function(validator, $field, options) {
+            if (this.enableByHtml5($field) && $field.get(0).validity && $field.get(0).validity.badInput === true) {
+                return false;
+            }
+
             var value = $field.val();
             if (value === '') {
                 return true;
@@ -4383,8 +5368,19 @@
         countryNotSupported: 'The country code %s is not supported',
         country: 'Please enter a valid phone number in %s',
         countries: {
+            BR: 'Brazil',
+            CN: 'China',
+            DK: 'Denmark',
+            ES: 'Spain',
+            FR: 'France',
             GB: 'United Kingdom',
-            US: 'USA'
+            MA: 'Morocco',
+            PK: 'Pakistan',
+            RO: 'Romania',
+            RU: 'Russia',
+            TH: 'Thailand',
+            US: 'USA',
+            VE: 'Venezuela'
         }
     });
 
@@ -4395,7 +5391,7 @@
         },
 
         // The supported countries
-        COUNTRY_CODES: ['GB', 'US'],
+        COUNTRY_CODES: ['BR', 'CN', 'DK', 'ES', 'FR', 'GB', 'MA', 'PK', 'RO', 'RU', 'TH', 'US', 'VE'],
 
         /**
          * Return true if the input value contains a valid phone number for the country
@@ -4411,7 +5407,6 @@
          *      - Name of callback function that returns the country code
          *      - A callback function that returns the country code
          *
-         * Currently it only supports United State (US) or United Kingdom (GB) countries
          * @returns {Boolean|Object}
          */
         validate: function(validator, $field, options) {
@@ -4435,11 +5430,79 @@
 
             var isValid = true;
             switch (country.toUpperCase()) {
+                case 'BR':
+                    // Test: http://regexr.com/399m1
+                    value   = $.trim(value);
+                    isValid = (/^(([\d]{4}[-.\s]{1}[\d]{2,3}[-.\s]{1}[\d]{2}[-.\s]{1}[\d]{2})|([\d]{4}[-.\s]{1}[\d]{3}[-.\s]{1}[\d]{4})|((\(?\+?[0-9]{2}\)?\s?)?(\(?\d{2}\)?\s?)?\d{4,5}[-.\s]?\d{4}))$/).test(value);
+                    break;
+
+                case 'CN':
+                    // http://regexr.com/39dq4
+                    value   = $.trim(value);
+                    isValid = (/^((00|\+)?(86(?:-| )))?((\d{11})|(\d{3}[- ]{1}\d{4}[- ]{1}\d{4})|((\d{2,4}[- ]){1}(\d{7,8}|(\d{3,4}[- ]{1}\d{4}))([- ]{1}\d{1,4})?))$/).test(value);
+                    break;
+
+                case 'DK':
+                    // Mathing DK phone numbers with country code in 1 of 3 formats and an
+                    // 8 digit phone number not starting with a 0 or 1. Can have 1 space
+                    // between each character except inside the country code.
+                    // Test: http://regex101.com/r/sS8fO4/1
+                    value   = $.trim(value);
+                    isValid = (/^(\+45|0045|\(45\))?\s?[2-9](\s?\d){7}$/).test(value);
+                    break;
+
+                case 'ES':
+                    // http://regex101.com/r/rB9mA9/1
+                    value   = $.trim(value);
+                    isValid = (/^(?:(?:(?:\+|00)34\D?))?(?:9|6)(?:\d\D?){8}$/).test(value);
+                    break;
+
+                case 'FR':
+                    // http://regexr.com/39a2p
+                    value   = $.trim(value);
+                    isValid = (/^(?:(?:(?:\+|00)33[ ]?(?:\(0\)[ ]?)?)|0){1}[1-9]{1}([ .-]?)(?:\d{2}\1?){3}\d{2}$/).test(value);
+                    break;
+
             	case 'GB':
             		// http://aa-asterisk.org.uk/index.php/Regular_Expressions_for_Validating_and_Formatting_GB_Telephone_Numbers#Match_GB_telephone_number_in_any_format
             		// Test: http://regexr.com/38uhv
             		value   = $.trim(value);
             		isValid = (/^\(?(?:(?:0(?:0|11)\)?[\s-]?\(?|\+)44\)?[\s-]?\(?(?:0\)?[\s-]?\(?)?|0)(?:\d{2}\)?[\s-]?\d{4}[\s-]?\d{4}|\d{3}\)?[\s-]?\d{3}[\s-]?\d{3,4}|\d{4}\)?[\s-]?(?:\d{5}|\d{3}[\s-]?\d{3})|\d{5}\)?[\s-]?\d{4,5}|8(?:00[\s-]?11[\s-]?11|45[\s-]?46[\s-]?4\d))(?:(?:[\s-]?(?:x|ext\.?\s?|\#)\d+)?)$/).test(value);
+                    break;
+
+                case 'MA':
+                    // http://en.wikipedia.org/wiki/Telephone_numbers_in_Morocco
+                    // Test: http://regexr.com/399n8
+                    value   = $.trim(value);
+                    isValid = (/^(?:(?:(?:\+|00)212[\s]?(?:[\s]?\(0\)[\s]?)?)|0){1}(?:5[\s.-]?[2-3]|6[\s.-]?[13-9]){1}[0-9]{1}(?:[\s.-]?\d{2}){3}$/).test(value);
+                    break;
+
+                case 'PK':
+                    // http://regex101.com/r/yH8aV9/2
+                    value   = $.trim(value);
+                    isValid = (/^0?3[0-9]{2}[0-9]{7}$/).test(value);
+                    break;
+
+        		case 'RO':
+        		    // All mobile network and land line
+                    // http://regexr.com/39fv1
+        		    isValid = (/^(\+4|)?(07[0-8]{1}[0-9]{1}|02[0-9]{2}|03[0-9]{2}){1}?(\s|\.|\-)?([0-9]{3}(\s|\.|\-|)){2}$/g).test(value);
+        		    break;
+
+                case 'RU':
+                    // http://regex101.com/r/gW7yT5/5
+                    isValid = (/^((8|\+7|007)[\-\.\/ ]?)?([\(\/\.]?\d{3}[\)\/\.]?[\-\.\/ ]?)?[\d\-\.\/ ]{7,10}$/g).test(value);
+                    break;
+
+                case 'TH':
+        		    // http://regex101.com/r/vM5mZ4/2
+        		    isValid = (/^0\(?([6|8-9]{2})*-([0-9]{3})*-([0-9]{4})$/).test(value);
+        		    break;
+
+                case 'VE':
+                    // http://regex101.com/r/eM2yY0/6
+                    value   = $.trim(value);
+                    isValid = (/^0(?:2(?:12|4[0-9]|5[1-9]|6[0-9]|7[0-8]|8[1-35-8]|9[1-5]|3[45789])|4(?:1[246]|2[46]))\d{7}$/).test(value);
                     break;
 
                 case 'US':
@@ -4511,8 +5574,20 @@
     $.fn.bootstrapValidator.validators.remote = {
         html5Attributes: {
             message: 'message',
+            name: 'name',
+            type: 'type',
             url: 'url',
-            name: 'name'
+            delay: 'delay'
+        },
+
+        /**
+         * Destroy the timer when destroying the bootstrapValidator (using validator.destroy() method)
+         */
+        destroy: function(validator, $field, options) {
+            if ($field.data('bv.remote.timer')) {
+                clearTimeout($field.data('bv.remote.timer'));
+                $field.removeData('bv.remote.timer');
+            }
         },
 
         /**
@@ -4527,20 +5602,25 @@
          *  {
          *      <fieldName>: <fieldValue>
          *  }
+         * - delay
          * - name {String} [optional]: Override the field name for the request.
          * - message: The invalid message
-         * @returns {Boolean|Deferred}
+         * - headers: Additional headers
+         * @returns {Deferred}
          */
         validate: function(validator, $field, options) {
-            var value = $field.val();
+            var value = $field.val(),
+                dfd   = new $.Deferred();
             if (value === '') {
-                return true;
+                dfd.resolve($field, 'remote', { valid: true });
+                return dfd;
             }
 
-            var name = $field.attr('data-bv-field'),
-                data = options.data || {},
-                url  = options.url,
-                type = options.type || 'POST';
+            var name    = $field.attr('data-bv-field'),
+                data    = options.data || {},
+                url     = options.url,
+                type    = options.type || 'GET',
+                headers = options.headers || {};
 
             // Support dynamic data
             if ('function' === typeof data) {
@@ -4553,23 +5633,38 @@
             }
 
             data[options.name || name] = value;
+            function runCallback() {
+                var xhr = $.ajax({
+                    type: type,
+                    headers: headers,
+                    url: url,
+                    dataType: 'json',
+                    data: data
+                });
+                xhr.then(function(response) {
+                    response.valid = response.valid === true || response.valid === 'true';
+                    dfd.resolve($field, 'remote', response);
+                });
 
-            var dfd = new $.Deferred();
-            var xhr = $.ajax({
-                type: type,
-                url: url,
-                dataType: 'json',
-                data: data
-            });
-            xhr.then(function(response) {
-                dfd.resolve($field, 'remote', response.valid === true || response.valid === 'true', response.message ? response.message : null);
-            });
+                dfd.fail(function() {
+                    xhr.abort();
+                });
 
-            dfd.fail(function() {
-                xhr.abort();
-            });
+                return dfd;
+            }
+            
+            if (options.delay) {
+                // Since the form might have multiple fields with the same name
+                // I have to attach the timer to the field element
+                if ($field.data('bv.remote.timer')) {
+                    clearTimeout($field.data('bv.remote.timer'));
+                }
 
-            return dfd;
+                $field.data('bv.remote.timer', setTimeout(runCallback, options.delay));
+                return dfd;
+            } else {
+                return runCallback();
+            }
         }
     };
 }(window.jQuery));
@@ -4833,14 +5928,17 @@
         },
 
         enableByHtml5: function($field) {
-            var maxLength = $field.attr('maxlength');
+            var options   = {},
+                maxLength = $field.attr('maxlength'),
+                minLength = $field.attr('minlength');
             if (maxLength) {
-                return {
-                    max: parseInt(maxLength, 10)
-                };
+                options.max = parseInt(maxLength, 10);
+            }
+            if (minLength) {
+                options.min = parseInt(minLength, 10);
             }
 
-            return false;
+            return $.isEmptyObject(options) ? false : options;
         },
 
         /**
@@ -4906,7 +6004,8 @@
     $.fn.bootstrapValidator.validators.uri = {
         html5Attributes: {
             message: 'message',
-            allowlocal: 'allowLocal'
+            allowlocal: 'allowLocal',
+            protocol: 'protocol'
         },
 
         enableByHtml5: function($field) {
@@ -4921,6 +6020,7 @@
          * @param {Object} options
          * - message: The error message
          * - allowLocal: Allow the private and local network IP. Default to false
+         * - protocol: The protocols, separated by a comma. Default to "http, https, ftp"
          * @returns {Boolean}
          */
         validate: function(validator, $field, options) {
@@ -4946,7 +6046,7 @@
             // Notes on possible differences from a standard/generic validation:
             //
             // - utf-8 char class take in consideration the full Unicode range
-            // - TLDs have been made mandatory so single names like "localhost" fails
+            // - TLDs are mandatory unless `allowLocal` is true
             // - protocols have been restricted to ftp, http and https only as requested
             //
             // Changes:
@@ -4956,12 +6056,16 @@
             //   (since they are broadcast/network addresses)
             //
             // - Added exclusion of private, reserved and/or local networks ranges
+            //   unless `allowLocal` is true
+            //
+            // - Added possibility of choosing a custom protocol
             //
             var allowLocal = options.allowLocal === true || options.allowLocal === 'true',
+                protocol   = (options.protocol || 'http, https, ftp').split(',').join('|').replace(/\s/g, ''),
                 urlExp     = new RegExp(
                     "^" +
                     // protocol identifier
-                    "(?:(?:https?|ftp)://)" +
+                    "(?:(?:" + protocol + ")://)" +
                     // user:pass authentication
                     "(?:\\S+(?::\\S*)?@)?" +
                     "(?:" +
@@ -4987,13 +6091,15 @@
                     "(?:\\.(?:[a-z\\u00a1-\\uffff0-9]+-?)*[a-z\\u00a1-\\uffff0-9]+)*" +
                     // TLD identifier
                     "(?:\\.(?:[a-z\\u00a1-\\uffff]{2,}))" +
+                    // Allow intranet sites (no TLD) if `allowLocal` is true
+                    (allowLocal ? '?' : '') +
                     ")" +
                     // port number
                     "(?::\\d{2,5})?" +
                     // resource path
                     "(?:/[^\\s]*)?" +
                     "$", "i"
-                );
+            );
 
             return urlExp.test(value);
         }
@@ -5049,41 +6155,45 @@
     $.fn.bootstrapValidator.i18n.vat = $.extend($.fn.bootstrapValidator.i18n.vat || {}, {
         'default': 'Please enter a valid VAT number',
         countryNotSupported: 'The country code %s is not supported',
-        country: 'Please enter a valid %s VAT number',
+        country: 'Please enter a valid VAT number in %s',
         countries: {
-            AT: 'Austrian',
-            BE: 'Belgian',
-            BG: 'Bulgarian',
-            CH: 'Swiss',
-            CY: 'Cypriot',
+            AT: 'Austria',
+            BE: 'Belgium',
+            BG: 'Bulgaria',
+            BR: 'Brazil',
+            CH: 'Switzerland',
+            CY: 'Cyprus',
             CZ: 'Czech',
-            DE: 'German',
-            DK: 'Danish',
-            EE: 'Estonian',
-            ES: 'Spanish',
-            FI: 'Finnish',
-            FR: 'French',
+            DE: 'Germany',
+            DK: 'Denmark',
+            EE: 'Estonia',
+            ES: 'Spain',
+            FI: 'Finland',
+            FR: 'France',
             GB: 'United Kingdom',
             GR: 'Greek',
             EL: 'Greek',
-            HU: 'Hungarian',
-            HR: 'Croatian',
-            IE: 'Irish',
-            IT: 'Italian',
-            LT: 'Lithuanian',
+            HU: 'Hungary',
+            HR: 'Croatia',
+            IE: 'Ireland',
+            IS: 'Iceland',
+            IT: 'Italy',
+            LT: 'Lithuania',
             LU: 'Luxembourg',
-            LV: 'Latvian',
-            MT: 'Maltese',
-            NL: 'Dutch',
-            NO: 'Norwegian',
-            PL: 'Polish',
-            PT: 'Portuguese',
-            RO: 'Romanian',
-            RU: 'Russian',
-            RS: 'Serbian',
-            SE: 'Swedish',
-            SI: 'Slovenian',
-            SK: 'Slovak'
+            LV: 'Latvia',
+            MT: 'Malta',
+            NL: 'Netherlands',
+            NO: 'Norway',
+            PL: 'Poland',
+            PT: 'Portugal',
+            RO: 'Romania',
+            RU: 'Russia',
+            RS: 'Serbia',
+            SE: 'Sweden',
+            SI: 'Slovenia',
+            SK: 'Slovakia',
+            VE: 'Venezuela',
+            ZA: 'South Africa'
         }
     });
 
@@ -5095,8 +6205,9 @@
 
         // Supported country codes
         COUNTRY_CODES: [
-            'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'EL', 'HU', 'IE', 'IT',
-            'LV', 'LT', 'LU', 'MT', 'NL', 'NO', 'PL', 'PT', 'RO', 'RU', 'RS', 'SK', 'SI', 'ES', 'SE', 'CH', 'GB'
+            'AT', 'BE', 'BG', 'BR', 'CH', 'CY', 'CZ', 'DE', 'DK', 'EE', 'EL', 'ES', 'FI', 'FR', 'GB', 'GR', 'HR', 'HU',
+            'IE', 'IS', 'IT', 'LT', 'LU', 'LV', 'MT', 'NL', 'NO', 'PL', 'PT', 'RO', 'RU', 'RS', 'SE', 'SK', 'SI', 'VE',
+            'ZA'
         ],
 
         /**
@@ -5155,15 +6266,17 @@
          * @returns {Boolean}
          */
         _at: function(value) {
-            if (!/^ATU[0-9]{8}$/.test(value)) {
+            if (/^ATU[0-9]{8}$/.test(value)) {
+                value = value.substr(2);
+            }
+            if (!/^U[0-9]{8}$/.test(value)) {
                 return false;
             }
 
-            value = value.substr(3);
+            value = value.substr(1);
             var sum    = 0,
                 weight = [1, 2, 1, 2, 1, 2, 1],
                 temp   = 0;
-
             for (var i = 0; i < 7; i++) {
                 temp = parseInt(value.charAt(i), 10) * weight[i];
                 if (temp > 9) {
@@ -5190,15 +6303,16 @@
          * @returns {Boolean}
          */
         _be: function(value) {
-            if (!/^BE[0]{0,1}[0-9]{9}$/.test(value)) {
+            if (/^BE[0]{0,1}[0-9]{9}$/.test(value)) {
+                value = value.substr(2);
+            }
+            if (!/^[0]{0,1}[0-9]{9}$/.test(value)) {
                 return false;
             }
 
-            value = value.substr(2);
             if (value.length === 9) {
                 value = '0' + value;
             }
-
             if (value.substr(1, 1) === '0') {
                 return false;
             }
@@ -5220,11 +6334,13 @@
          * @returns {Boolean}
          */
         _bg: function(value) {
-            if (!/^BG[0-9]{9,10}$/.test(value)) {
+            if (/^BG[0-9]{9,10}$/.test(value)) {
+                value = value.substr(2);
+            }
+            if (!/^[0-9]{9,10}$/.test(value)) {
                 return false;
             }
 
-            value = value.substr(2);
             var sum = 0, i = 0;
 
             // Legal entities
@@ -5301,6 +6417,64 @@
 
             return false;
         },
+        
+        /**
+         * Validate Brazilian VAT number (CNPJ)
+         *
+         * @param {String} value VAT number
+         * @returns {Boolean}
+         */
+        _br: function(value) {
+            if (value === '') {
+                return true;
+            }
+            var cnpj = value.replace(/[^\d]+/g, '');
+            if (cnpj === '' || cnpj.length !== 14) {
+                return false;
+            }
+
+            // Remove invalids CNPJs
+            if (cnpj === '00000000000000' || cnpj === '11111111111111' || cnpj === '22222222222222' ||
+                cnpj === '33333333333333' || cnpj === '44444444444444' || cnpj === '55555555555555' ||
+                cnpj === '66666666666666' || cnpj === '77777777777777' || cnpj === '88888888888888' ||
+                cnpj === '99999999999999')
+            {
+                return false;
+            }
+
+            // Validate verification digits
+            var length  = cnpj.length - 2,
+                numbers = cnpj.substring(0, length),
+                digits  = cnpj.substring(length),
+                sum     = 0,
+                pos     = length - 7;
+
+            for (var i = length; i >= 1; i--) {
+                sum += parseInt(numbers.charAt(length - i), 10) * pos--;
+                if (pos < 2) {
+                    pos = 9;
+                }
+            }
+
+            var result = sum % 11 < 2 ? 0 : 11 - sum % 11;
+            if (result !== parseInt(digits.charAt(0), 10)) {
+                return false;
+            }
+
+            length  = length + 1;
+            numbers = cnpj.substring(0, length);
+            sum     = 0;
+            pos     = length - 7;
+            for (i = length; i >= 1; i--) {
+                sum += parseInt(numbers.charAt(length - i), 10) * pos--;
+                if (pos < 2) {
+                    pos = 9;
+                }
+            }
+
+            result = sum % 11 < 2 ? 0 : 11 - sum % 11;
+            return (result === parseInt(digits.charAt(1), 10));
+        },
 
         /**
          * Validate Swiss VAT number
@@ -5309,11 +6483,14 @@
          * @returns {Boolean}
          */
         _ch: function(value) {
-            if (!/^CHE[0-9]{9}(MWST)?$/.test(value)) {
+            if (/^CHE[0-9]{9}(MWST)?$/.test(value)) {
+                value = value.substr(2);
+            }
+            if (!/^E[0-9]{9}(MWST)?$/.test(value)) {
                 return false;
             }
 
-            value = value.substr(3);
+            value = value.substr(1);
             var sum    = 0,
                 weight = [5, 4, 3, 2, 7, 6, 5, 4];
             for (var i = 0; i < 8; i++) {
@@ -5341,11 +6518,12 @@
          * @returns {Boolean}
          */
         _cy: function(value) {
-            if (!/^CY[0-5|9]{1}[0-9]{7}[A-Z]{1}$/.test(value)) {
+            if (/^CY[0-5|9]{1}[0-9]{7}[A-Z]{1}$/.test(value)) {
+                value = value.substr(2);
+            }
+            if (!/^[0-5|9]{1}[0-9]{7}[A-Z]{1}$/.test(value)) {
                 return false;
             }
-
-            value = value.substr(2);
 
             // Do not allow to start with "12"
             if (value.substr(0, 2) === '12') {
@@ -5385,11 +6563,12 @@
          * @returns {Boolean}
          */
         _cz: function(value) {
-            if (!/^CZ[0-9]{8,10}$/.test(value)) {
+            if (/^CZ[0-9]{8,10}$/.test(value)) {
+                value = value.substr(2);
+            }
+            if (!/^[0-9]{8,10}$/.test(value)) {
                 return false;
             }
-
-            value = value.substr(2);
 
             var sum = 0,
                 i   = 0;
@@ -5472,11 +6651,13 @@
          * @returns {Boolean}
          */
         _de: function(value) {
-            if (!/^DE[0-9]{9}$/.test(value)) {
+            if (/^DE[0-9]{9}$/.test(value)) {
+                value = value.substr(2);
+            }
+            if (!/^[0-9]{9}$/.test(value)) {
                 return false;
             }
 
-            value = value.substr(2);
             return $.fn.bootstrapValidator.helpers.mod11And10(value);
         },
 
@@ -5490,11 +6671,13 @@
          * @returns {Boolean}
          */
         _dk: function(value) {
-            if (!/^DK[0-9]{8}$/.test(value)) {
+            if (/^DK[0-9]{8}$/.test(value)) {
+                value = value.substr(2);
+            }
+            if (!/^[0-9]{8}$/.test(value)) {
                 return false;
             }
 
-            value = value.substr(2);
             var sum    = 0,
                 weight = [2, 7, 6, 5, 4, 3, 2, 1];
             for (var i = 0; i < 8; i++) {
@@ -5514,14 +6697,15 @@
          * @returns {Boolean}
          */
         _ee: function(value) {
-            if (!/^EE[0-9]{9}$/.test(value)) {
+            if (/^EE[0-9]{9}$/.test(value)) {
+                value = value.substr(2);
+            }
+            if (!/^[0-9]{9}$/.test(value)) {
                 return false;
             }
 
-            value = value.substr(2);
             var sum    = 0,
                 weight = [3, 7, 1, 3, 7, 1, 3, 7, 1];
-
             for (var i = 0; i < 9; i++) {
                 sum += parseInt(value.charAt(i), 10) * weight[i];
             }
@@ -5544,11 +6728,13 @@
          * @returns {Boolean}
          */
         _es: function(value) {
-            if (!/^ES[0-9A-Z][0-9]{7}[0-9A-Z]$/.test(value)) {
+            if (/^ES[0-9A-Z][0-9]{7}[0-9A-Z]$/.test(value)) {
+                value = value.substr(2);
+            }
+            if (!/^[0-9A-Z][0-9]{7}[0-9A-Z]$/.test(value)) {
                 return false;
             }
 
-            value = value.substr(2);
             var dni = function(value) {
                     var check = parseInt(value.substr(0, 8), 10);
                     check = 'TRWAGMYFPDXBNJZSQVHLCKE'[check % 23];
@@ -5608,14 +6794,15 @@
          * @returns {Boolean}
          */
         _fi: function(value) {
-            if (!/^FI[0-9]{8}$/.test(value)) {
+            if (/^FI[0-9]{8}$/.test(value)) {
+                value = value.substr(2);
+            }
+            if (!/^[0-9]{8}$/.test(value)) {
                 return false;
             }
 
-            value = value.substr(2);
             var sum    = 0,
                 weight = [7, 9, 10, 5, 8, 4, 2, 1];
-
             for (var i = 0; i < 8; i++) {
                 sum += parseInt(value.charAt(i), 10) * weight[i];
             }
@@ -5635,13 +6822,14 @@
          * @returns {Boolean}
          */
         _fr: function(value) {
-            if (!/^FR[0-9A-Z]{2}[0-9]{9}$/.test(value)) {
+            if (/^FR[0-9A-Z]{2}[0-9]{9}$/.test(value)) {
+                value = value.substr(2);
+            }
+            if (!/^[0-9A-Z]{2}[0-9]{9}$/.test(value)) {
                 return false;
             }
 
-            value = value.substr(2);
-
-			if (!$.fn.bootstrapValidator.helpers.luhn(value.substr(2))) {
+            if (!$.fn.bootstrapValidator.helpers.luhn(value.substr(2))) {
                 return false;
             }
 
@@ -5672,16 +6860,23 @@
          * @returns {Boolean}
          */
         _gb: function(value) {
-            if (!/^GB[0-9]{9}$/.test(value)             /* Standard */
-                && !/^GB[0-9]{12}$/.test(value)         /* Branches */
-                && !/^GBGD[0-9]{3}$/.test(value)        /* Government department */
-                && !/^GBHA[0-9]{3}$/.test(value)        /* Health authority */
-                && !/^GB(GD|HA)8888[0-9]{5}$/.test(value))
+            if (/^GB[0-9]{9}$/.test(value)             /* Standard */
+                || /^GB[0-9]{12}$/.test(value)         /* Branches */
+                || /^GBGD[0-9]{3}$/.test(value)        /* Government department */
+                || /^GBHA[0-9]{3}$/.test(value)        /* Health authority */
+                || /^GB(GD|HA)8888[0-9]{5}$/.test(value))
+            {
+                value = value.substr(2);
+            }
+            if (!/^[0-9]{9}$/.test(value)
+                && !/^[0-9]{12}$/.test(value)
+                && !/^GD[0-9]{3}$/.test(value)
+                && !/^HA[0-9]{3}$/.test(value)
+                && !/^(GD|HA)8888[0-9]{5}$/.test(value))
             {
                 return false;
             }
 
-            value = value.substr(2);
             var length = value.length;
             if (length === 5) {
                 var firstTwo  = value.substr(0, 2),
@@ -5722,11 +6917,13 @@
          * @returns {Boolean}
          */
         _gr: function(value) {
-            if (!/^GR[0-9]{9}$/.test(value)) {
+            if (/^(GR|EL)[0-9]{9}$/.test(value)) {
+                value = value.substr(2);
+            }
+            if (!/^[0-9]{9}$/.test(value)) {
                 return false;
             }
 
-            value = value.substr(2);
             if (value.length === 8) {
                 value = '0' + value;
             }
@@ -5743,11 +6940,6 @@
 
         // EL is traditionally prefix of Greek VAT numbers
         _el: function(value) {
-            if (!/^EL[0-9]{9}$/.test(value)) {
-                return false;
-            }
-
-            value = 'GR' + value.substr(2);
             return this._gr(value);
         },
 
@@ -5761,11 +6953,13 @@
          * @returns {Boolean}
          */
         _hu: function(value) {
-            if (!/^HU[0-9]{8}$/.test(value)) {
+            if (/^HU[0-9]{8}$/.test(value)) {
+                value = value.substr(2);
+            }
+            if (!/^[0-9]{8}$/.test(value)) {
                 return false;
             }
 
-            value = value.substr(2);
             var sum    = 0,
                 weight = [9, 7, 3, 1, 9, 7, 3, 1];
 
@@ -5786,11 +6980,13 @@
          * @returns {Boolean}
          */
         _hr: function(value) {
-            if (!/^HR[0-9]{11}$/.test(value)) {
+            if (/^HR[0-9]{11}$/.test(value)) {
+                value = value.substr(2);
+            }
+            if (!/^[0-9]{11}$/.test(value)) {
                 return false;
             }
 
-            value = value.substr(2);
             return $.fn.bootstrapValidator.helpers.mod11And10(value);
         },
 
@@ -5804,11 +7000,13 @@
          * @returns {Boolean}
          */
         _ie: function(value) {
-            if (!/^IE[0-9]{1}[0-9A-Z\*\+]{1}[0-9]{5}[A-Z]{1,2}$/.test(value)) {
+            if (/^IE[0-9]{1}[0-9A-Z\*\+]{1}[0-9]{5}[A-Z]{1,2}$/.test(value)) {
+                value = value.substr(2);
+            }
+            if (!/^[0-9]{1}[0-9A-Z\*\+]{1}[0-9]{5}[A-Z]{1,2}$/.test(value)) {
                 return false;
             }
 
-            value = value.substr(2);
             var getCheckDigit = function(value) {
                 while (value.length < 7) {
                     value = '0' + value;
@@ -5835,6 +7033,22 @@
         },
 
         /**
+         * Validate Icelandic VAT (VSK) number
+         * Examples:
+         * - Valid: 12345, 123456
+         * - Invalid: 1234567
+         *
+         * @params {String} value VAT number
+         * @returns {Boolean}
+         */
+        _is: function(value) {
+            if (/^IS[0-9]{5,6}$/.test(value)) {
+                value = value.substr(2);
+            }
+            return /^[0-9]{5,6}$/.test(value);
+        },
+
+        /**
          * Validate Italian VAT number, which consists of 11 digits.
          * - First 7 digits are a company identifier
          * - Next 3 are the province of residence
@@ -5848,11 +7062,13 @@
          * @returns {Boolean}
          */
         _it: function(value) {
-            if (!/^IT[0-9]{11}$/.test(value)) {
+            if (/^IT[0-9]{11}$/.test(value)) {
+                value = value.substr(2);
+            }
+            if (!/^[0-9]{11}$/.test(value)) {
                 return false;
             }
 
-            value = value.substr(2);
             if (parseInt(value.substr(0, 7), 10) === 0) {
                 return false;
             }
@@ -5879,11 +7095,13 @@
          * @returns {Boolean}
          */
         _lt: function(value) {
-            if (!/^LT([0-9]{7}1[0-9]{1}|[0-9]{10}1[0-9]{1})$/.test(value)) {
+            if (/^LT([0-9]{7}1[0-9]{1}|[0-9]{10}1[0-9]{1})$/.test(value)) {
+                value = value.substr(2);
+            }
+            if (!/^([0-9]{7}1[0-9]{1}|[0-9]{10}1[0-9]{1})$/.test(value)) {
                 return false;
             }
 
-            value = value.substr(2);
             var length = value.length,
                 sum    = 0,
                 i;
@@ -5911,11 +7129,13 @@
          * @returns {Boolean}
          */
         _lu: function(value) {
-            if (!/^LU[0-9]{8}$/.test(value)) {
+            if (/^LU[0-9]{8}$/.test(value)) {
+                value = value.substr(2);
+            }
+            if (!/^[0-9]{8}$/.test(value)) {
                 return false;
             }
 
-            value = value.substr(2);
             return ((parseInt(value.substr(0, 6), 10) % 89) + '' === value.substr(6, 2));
         },
 
@@ -5929,11 +7149,13 @@
          * @returns {Boolean}
          */
         _lv: function(value) {
-            if (!/^LV[0-9]{11}$/.test(value)) {
+            if (/^LV[0-9]{11}$/.test(value)) {
+                value = value.substr(2);
+            }
+            if (!/^[0-9]{11}$/.test(value)) {
                 return false;
             }
 
-            value = value.substr(2);
             var first  = parseInt(value.charAt(0), 10),
                 sum    = 0,
                 weight = [],
@@ -5980,11 +7202,13 @@
          * @returns {Boolean}
          */
         _mt: function(value) {
-            if (!/^MT[0-9]{8}$/.test(value)) {
+            if (/^MT[0-9]{8}$/.test(value)) {
+                value = value.substr(2);
+            }
+            if (!/^[0-9]{8}$/.test(value)) {
                 return false;
             }
 
-            value = value.substr(2);
             var sum    = 0,
                 weight = [3, 4, 6, 7, 8, 9, 10, 1];
 
@@ -6005,10 +7229,13 @@
          * @returns {Boolean}
          */
         _nl: function(value) {
-            if (!/^NL[0-9]{9}B[0-9]{2}$/.test(value)) {
+            if (/^NL[0-9]{9}B[0-9]{2}$/.test(value)) {
+               value = value.substr(2);
+            }
+            if (!/^[0-9]{9}B[0-9]{2}$/.test(value)) {
                return false;
             }
-            value = value.substr(2);
+
             var sum    = 0,
                 weight = [9, 8, 7, 6, 5, 4, 3, 2];
             for (var i = 0; i < 8; i++) {
@@ -6030,10 +7257,13 @@
          * @returns {Boolean}
          */
         _no: function(value) {
-            if (!/^NO[0-9]{9}$/.test(value)) {
+            if (/^NO[0-9]{9}$/.test(value)) {
+               value = value.substr(2);
+            }
+            if (!/^[0-9]{9}$/.test(value)) {
                return false;
             }
-            value = value.substr(2);
+
             var sum    = 0,
                 weight = [3, 2, 7, 6, 5, 4, 3, 2];
             for (var i = 0; i < 8; i++) {
@@ -6057,11 +7287,13 @@
          * @returns {Boolean}
          */
         _pl: function(value) {
-            if (!/^PL[0-9]{10}$/.test(value)) {
+            if (/^PL[0-9]{10}$/.test(value)) {
+                value = value.substr(2);
+            }
+            if (!/^[0-9]{10}$/.test(value)) {
                 return false;
             }
 
-            value = value.substr(2);
             var sum    = 0,
                 weight = [6, 5, 7, 2, 3, 4, 5, 6, 7, -1];
 
@@ -6082,11 +7314,13 @@
          * @returns {Boolean}
          */
         _pt: function(value) {
-            if (!/^PT[0-9]{9}$/.test(value)) {
+            if (/^PT[0-9]{9}$/.test(value)) {
+                value = value.substr(2);
+            }
+            if (!/^[0-9]{9}$/.test(value)) {
                 return false;
             }
 
-            value = value.substr(2);
             var sum    = 0,
                 weight = [9, 8, 7, 6, 5, 4, 3, 2];
 
@@ -6110,10 +7344,12 @@
          * @returns {Boolean}
          */
         _ro: function(value) {
-            if (!/^RO[1-9][0-9]{1,9}$/.test(value)) {
+            if (/^RO[1-9][0-9]{1,9}$/.test(value)) {
+                value = value.substr(2);
+            }
+            if (!/^[1-9][0-9]{1,9}$/.test(value)) {
                 return false;
             }
-            value = value.substr(2);
 
             var length = value.length,
                 weight = [7, 5, 3, 2, 1, 7, 5, 3, 2].slice(10 - length),
@@ -6133,11 +7369,13 @@
          * @returns {Boolean}
          */
         _ru: function(value) {
-            if (!/^RU([0-9]{9}|[0-9]{12})$/.test(value)) {
+            if (/^RU([0-9]{10}|[0-9]{12})$/.test(value)) {
+                value = value.substr(2);
+            }
+            if (!/^([0-9]{10}|[0-9]{12})$/.test(value)) {
                 return false;
             }
 
-            value = value.substr(2);
             var i = 0;
             if (value.length === 10) {
                 var sum    = 0,
@@ -6183,11 +7421,13 @@
          * @returns {Boolean}
          */
         _rs: function(value) {
-            if (!/^RS[0-9]{9}$/.test(value)) {
+            if (/^RS[0-9]{9}$/.test(value)) {
+                value = value.substr(2);
+            }
+            if (!/^[0-9]{9}$/.test(value)) {
                 return false;
             }
 
-            value = value.substr(2);
             var sum  = 10,
                 temp = 0;
             for (var i = 0; i < 8; i++) {
@@ -6211,11 +7451,14 @@
          * @returns {Boolean}
          */
         _se: function(value) {
-            if (!/^SE[0-9]{10}01$/.test(value)) {
+            if (/^SE[0-9]{10}01$/.test(value)) {
+                value = value.substr(2);
+            }
+            if (!/^[0-9]{10}01$/.test(value)) {
                 return false;
             }
 
-            value = value.substr(2, 10);
+            value = value.substr(0, 10);
             return $.fn.bootstrapValidator.helpers.luhn(value);
         },
 
@@ -6229,11 +7472,13 @@
          * @returns {Boolean}
          */
         _si: function(value) {
-            if (!/^SI[0-9]{8}$/.test(value)) {
+            if (/^SI[0-9]{8}$/.test(value)) {
+                value = value.substr(2);
+            }
+            if (!/^[0-9]{8}$/.test(value)) {
                 return false;
             }
 
-            value = value.substr(2);
             var sum    = 0,
                 weight = [8, 7, 6, 5, 4, 3, 2];
 
@@ -6257,11 +7502,69 @@
          * @returns {Boolean}
          */
         _sk: function(value) {
-            if (!/^SK[1-9][0-9][(2-4)|(6-9)][0-9]{7}$/.test(value)) {
+            if (/^SK[1-9][0-9][(2-4)|(6-9)][0-9]{7}$/.test(value)) {
+                value = value.substr(2);
+            }
+            if (!/^[1-9][0-9][(2-4)|(6-9)][0-9]{7}$/.test(value)) {
                 return false;
             }
 
-            return (parseInt(value.substr(2), 10) % 11 === 0);
+            return (parseInt(value, 10) % 11 === 0);
+        },
+
+        /**
+         * Validate Venezuelan VAT number (RIF)
+         * Examples:
+         * - Valid: VEJ309272292, VEV242818101, VEJ000126518, VEJ000458324, J309272292, V242818101, J000126518, J000458324
+         * - Invalid: VEJ309272293, VEV242818100, J000126519, J000458323
+         *
+         * @param {String} value VAT number
+         * @returns {Boolean}
+         */
+        _ve: function(value) {
+            if (/^VE[VEJPG][0-9]{9}$/.test(value)) {
+                value = value.substr(2);
+            }
+            if (!/^[VEJPG][0-9]{9}$/.test(value)) {
+                return false;
+            }
+
+            var types  = {
+                    'V': 4,
+                    'E': 8,
+                    'J': 12,
+                    'P': 16,
+                    'G': 20
+                },
+                sum    = types[value.charAt(0)],
+                weight = [3, 2, 7, 6, 5, 4, 3, 2];
+
+            for (var i = 0; i < 8; i++) {
+                sum += parseInt(value.charAt(i + 1), 10) * weight[i];
+            }
+
+            sum = 11 - sum % 11;
+            if (sum === 11 || sum === 10) {
+                sum = 0;
+            }
+            return (sum + '' === value.substr(9, 1));
+        },
+
+        /**
+         * Validate South African VAT number
+         * Examples:
+         * - Valid: 4012345678
+         * - Invalid: 40123456789, 3012345678
+         *
+         * @params {String} value VAT number
+         * @returns {Boolean}
+         */
+         _za: function(value) {
+            if (/^ZA4[0-9]{9}$/.test(value)) {
+                value = value.substr(2);
+            }
+
+            return /^4[0-9]{9}$/.test(value);
         }
     };
 }(window.jQuery));
@@ -6316,18 +7619,22 @@
 }(window.jQuery));
 ;(function($) {
     $.fn.bootstrapValidator.i18n.zipCode = $.extend($.fn.bootstrapValidator.i18n.zipCode || {}, {
-        'default': 'Please enter a valid zip code',
+        'default': 'Please enter a valid postal code',
         countryNotSupported: 'The country code %s is not supported',
-        country: 'Please enter a valid %s',
+        country: 'Please enter a valid postal code in %s',
         countries: {
-            'CA': 'Canadian postal code',
-            'DK': 'Danish postal code',
-            'GB': 'United Kingdom postal code',
-            'IT': 'Italian postal code',
-            'NL': 'Dutch postal code',
-            'SE': 'Swiss postal code',
-            'SG': 'Singapore postal code',
-            'US': 'US zip code'
+            BR: 'Brazil',
+            CA: 'Canada',
+            DK: 'Denmark',
+            GB: 'United Kingdom',
+            IT: 'Italy',
+            MA: 'Morocco',
+            NL: 'Netherlands',
+            RO: 'Romania',
+            RU: 'Russia',
+            SE: 'Sweden',
+            SG: 'Singapore',
+            US: 'USA'
         }
     });
 
@@ -6337,7 +7644,7 @@
             country: 'country'
         },
 
-        COUNTRY_CODES: ['CA', 'DK', 'GB', 'IT', 'NL', 'SE', 'SG', 'US'],
+        COUNTRY_CODES: ['BR', 'CA', 'DK', 'GB', 'IT', 'MA', 'NL', 'RO', 'RU', 'SE', 'SG', 'US'],
 
         /**
          * Return true if and only if the input value is a valid country zip code
@@ -6350,16 +7657,6 @@
          *
          * The country can be defined by:
          * - An ISO 3166 country code
-         * Currently it supports the following countries:
-         *      - US (United States)
-         *      - CA (Canada)
-         *      - DK (Denmark)
-         *      - GB (United Kingdom)
-         *      - IT (Italy)
-         *      - NL (Netherlands)
-         *      - SE (Sweden)
-         *      - SG (Singapore)
-         *
          * - Name of field which its value defines the country code
          * - Name of callback function that returns the country code
          * - A callback function that returns the country code
@@ -6391,6 +7688,10 @@
             var isValid = false;
             country = country.toUpperCase();
             switch (country) {
+                case 'BR':
+                    isValid = /^(\d{2})([\.]?)(\d{3})([\-]?)(\d{3})$/.test(value);
+                    break;
+
                 case 'CA':
                     isValid = /^(?:A|B|C|E|G|H|J|K|L|M|N|P|R|S|T|V|X|Y){1}[0-9]{1}(?:A|B|C|E|G|H|J|K|L|M|N|P|R|S|T|V|W|X|Y|Z){1}\s?[0-9]{1}(?:A|B|C|E|G|H|J|K|L|M|N|P|R|S|T|V|W|X|Y|Z){1}[0-9]{1}$/i.test(value);
                     break;
@@ -6408,9 +7709,22 @@
                     isValid = /^(I-|IT-)?\d{5}$/i.test(value);
                     break;
 
+                // http://en.wikipedia.org/wiki/List_of_postal_codes_in_Morocco
+                case 'MA':
+                    isValid = /^[1-9][0-9]{4}$/i.test(value);
+                    break;
+
                 // http://en.wikipedia.org/wiki/Postal_codes_in_the_Netherlands
                 case 'NL':
                     isValid = /^[1-9][0-9]{3} ?(?!sa|sd|ss)[a-z]{2}$/i.test(value);
+                    break;
+                    
+                case 'RO':
+                    isValid = /^(0[1-8]{1}|[1-9]{1}[0-5]{1})?[0-9]{4}$/i.test(value);
+                    break;
+
+                case 'RU':
+                    isValid = /^[0-9]{6}$/i.test(value);
                     break;
 
                 case 'SE':
@@ -6419,8 +7733,8 @@
 
                 case 'SG':
                     isValid = /^([0][1-9]|[1-6][0-9]|[7]([0-3]|[5-9])|[8][0-2])(\d{4})$/i.test(value);
-                    break;
-
+                    break;                
+                
                 case 'US':
                 /* falls through */
                 default:
