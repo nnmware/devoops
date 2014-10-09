@@ -43,6 +43,20 @@ function LoadOpenLayersScript(callback){
 	}
 }
 //
+// Dynamically load  Leaflet Plugin
+// homepage: http://leafletjs.com
+//
+function LoadLeafletScript(callback){
+	if (!$.fn.L){
+		$.getScript('plugins/leaflet/leaflet.js', callback);
+	}
+	else {
+		if (callback && typeof(callback) === "function") {
+			callback();
+		}
+	}
+}
+//
 //  Dynamically load  jQuery Timepicker plugin
 //  homepage: http://trentrichardson.com/examples/timepicker/
 //
@@ -192,6 +206,884 @@ function LoadMorrisScripts(callback){
 	else {
 		LoadMorrisScript();
 	}
+}
+//
+//  Dynamically load Am Charts plugin
+//  homepage: http://www.amcharts.com/ 3.11.1 free with linkware
+//
+function LoadAmchartsScripts(callback){
+	function LoadAmchartsScript(){
+		$.getScript('plugins/amcharts/amcharts.js', LoadFunnelScript);
+	}
+	function LoadFunnelScript(){
+		$.getScript('plugins/amcharts/funnel.js', LoadSerialScript);
+	}
+	function LoadSerialScript(){
+		$.getScript('plugins/amcharts/serial.js', LoadPieScript);
+	}
+	function LoadPieScript(){
+		$.getScript('plugins/amcharts/pie.js', callback);
+	}
+	if (!$.fn.AmCharts){
+		LoadAmchartsScript();
+	}
+	else {
+		if (callback && typeof(callback) === "function") {
+			callback();
+		}
+	}
+}
+//
+//  Dynamically load Chartist plugin
+//  homepage: http://gionkunz.github.io/chartist-js/index.html 0.1.15 AS IS
+//
+function LoadChartistScripts(callback){
+	function LoadChartistScript(){
+		$.getScript('plugins/chartist/chartist.min.js', callback);
+	}
+	if (!$.fn.Chartist){
+		LoadChartistScript();
+	}
+	else {
+		if (callback && typeof(callback) === "function") {
+			callback();
+		}
+	}
+}
+//
+//  Dynamically load Springy plugin
+//  homepage: http://getspringy.com/ 2.6.1 as is
+//
+function LoadSpringyScripts(callback){
+	function LoadSpringyScript(){
+		$.getScript('plugins/springy/springy.js', LoadSpringyUIScript);
+	}
+	function LoadSpringyUIScript(){
+		$.getScript('plugins/springy/springyui.js', callback);
+	}
+	if (!$.fn.Springy){
+		LoadSpringyScript();
+	}
+	else {
+		if (callback && typeof(callback) === "function") {
+			callback();
+		}
+	}
+}
+// Draw all test Am Charts
+function DrawAllAmCharts(){
+	DrawAmChart1();
+	DrawAmChart2();
+	DrawAmChart3();
+	DrawAmChart4();
+	DrawAmChart5();
+}
+function DrawAmChart1(){
+	var chart;
+	var data = [
+		{
+			"title": "Website visits",
+			"value": 200
+		},
+		{
+			"title": "Downloads",
+			"value": 123
+		},
+		{
+			"title": "Requested price list",
+			"value": 98
+		},
+		{
+			"title": "Contaced for more info",
+			"value": 72
+		},
+		{
+			"title": "Purchased",
+			"value": 65
+		},
+		{
+			"title": "Contacted for support",
+			"value": 45
+		},
+		{
+			"title": "Purchased additional products",
+			"value": 36
+		}
+	];
+	chart = new AmCharts.AmFunnelChart();
+	chart.rotate = true;
+	chart.titleField = "title";
+	chart.balloon.fixedPosition = true;
+	chart.marginRight = 150;
+	chart.marginLeft = 15;
+	chart.labelPosition = "right";
+	chart.funnelAlpha = 0.9;
+	chart.valueField = "value";
+	chart.startX = -500;
+	chart.dataProvider = data;
+	chart.startAlpha = 0;
+	chart.depth3D = 100;
+	chart.angle = 30;
+	chart.outlineAlpha = 1;
+	chart.outlineThickness = 2;
+	chart.outlineColor = "#FFFFFF";
+	chart.write("am-chart-1");
+}
+function DrawAmChart2(){
+	var chart;
+	var chartData = [
+		{
+			"name": "Income A",
+			"open": 0,
+			"close": 11.13,
+			"color": "#54cb6a",
+			"balloonValue": 11.13
+		},
+		{
+			"name": "Income B",
+			"open": 11.13,
+			"close": 15.81,
+			"color": "#54cb6a",
+			"balloonValue": 4.68
+		},
+		{
+			"name": "Total Income",
+			"open": 0,
+			"close": 15.81,
+			"color": "#169b2f",
+			"balloonValue": 15.81
+		},
+		{
+			"name": "Expenses A",
+			"open": 12.92,
+			"close": 15.81,
+			"color": "#cc4b48",
+			"balloonValue": 2.89
+		},
+		{
+			"name": "Expenses B",
+			"open": 8.64,
+			"close": 12.92,
+			"color": "#cc4b48",
+			"balloonValue": 4.24
+		},
+		{
+			"name": "Revenue",
+			"open": 0,
+			"close": 8.64,
+			"color": "#1c8ceb",
+			"balloonValue": 11.13
+		}
+	];
+
+	// Waterfall chart is a simple serial chart with some specific settings
+	chart = new AmCharts.AmSerialChart();
+	chart.dataProvider = chartData;
+	chart.categoryField = "name";
+	chart.columnWidth = 0.6;
+	chart.startDuration = 1;
+
+	// AXES
+	// Category
+	var categoryAxis = chart.categoryAxis;
+	categoryAxis.gridAlpha = 0.1;
+	categoryAxis.axisAlpha = 0;
+	categoryAxis.gridPosition = "start";
+
+	// Value
+	var valueAxis = new AmCharts.ValueAxis();
+	valueAxis.gridAlpha = 0.1;
+	valueAxis.axisAlpha = 0;
+	chart.addValueAxis(valueAxis);
+
+	// GRAPH
+	var graph = new AmCharts.AmGraph();
+	graph.valueField = "close";
+	graph.openField = "open";
+	graph.type = "column";
+	graph.lineAlpha = 1;
+	graph.lineColor = "#BBBBBB";
+	graph.colorField = "color";
+	graph.fillAlphas = 0.8;
+	graph.balloonText = "<span style='color:[[color]]'>[[category]]</span><br><span style='font-size:13px;'><b>$[[balloonValue]] Mln</b></span>";
+	graph.labelText = "$[[balloonValue]]";
+	chart.addGraph(graph);
+
+	// Trend lines used for connectors
+	var trendLine = new AmCharts.TrendLine();
+	trendLine.initialCategory = "Income A";
+	trendLine.finalCategory = "Income B";
+	trendLine.initialValue = 11.13;
+	trendLine.finalValue = 11.13;
+	trendLine.lineColor = "#888888";
+	trendLine.dashLength = 3;
+	chart.addTrendLine(trendLine);
+
+	trendLine = new AmCharts.TrendLine();
+	trendLine.initialCategory = "Income B";
+	trendLine.finalCategory = "Expenses A";
+	trendLine.initialValue = 15.81;
+	trendLine.finalValue = 15.81;
+	trendLine.lineColor = "#888888";
+	trendLine.dashLength = 3;
+	chart.addTrendLine(trendLine);
+
+	trendLine = new AmCharts.TrendLine();
+	trendLine.initialCategory = "Expenses A";
+	trendLine.finalCategory = "Expenses B";
+	trendLine.initialValue = 12.92;
+	trendLine.finalValue = 12.92;
+	trendLine.lineColor = "#888888";
+	trendLine.dashLength = 3;
+	chart.addTrendLine(trendLine);
+
+	trendLine = new AmCharts.TrendLine();
+	trendLine.initialCategory = "Expenses B";
+	trendLine.finalCategory = "Revenue";
+	trendLine.initialValue = 8.64;
+	trendLine.finalValue = 8.64;
+	trendLine.lineColor = "#888888";
+	trendLine.dashLength = 3;
+	chart.addTrendLine(trendLine);
+
+	// WRITE
+	chart.write("am-chart-2");
+
+}
+function DrawAmChart3(){
+	var chart;
+	var chartData = [];
+
+	// generate some random data first
+	generateChartData();
+
+	// SERIAL CHART
+	chart = new AmCharts.AmSerialChart();
+	chart.pathToImages = "../amcharts/images/";
+	chart.dataProvider = chartData;
+	chart.categoryField = "date";
+
+	// listen for "dataUpdated" event (fired when chart is inited) and call zoomChart method when it happens
+	chart.addListener("dataUpdated", zoomChart);
+
+	// AXES
+	// category
+	var categoryAxis = chart.categoryAxis;
+	categoryAxis.parseDates = true; // as our data is date-based, we set parseDates to true
+	categoryAxis.minPeriod = "DD"; // our data is daily, so we set minPeriod to DD
+	categoryAxis.minorGridEnabled = true;
+	categoryAxis.axisColor = "#DADADA";
+	categoryAxis.twoLineMode = true;
+	categoryAxis.dateFormats = [{
+			period: 'fff',
+			format: 'JJ:NN:SS'
+		}, {
+			period: 'ss',
+			format: 'JJ:NN:SS'
+		}, {
+			period: 'mm',
+			format: 'JJ:NN'
+		}, {
+			period: 'hh',
+			format: 'JJ:NN'
+		}, {
+			period: 'DD',
+			format: 'DD'
+		}, {
+			period: 'WW',
+			format: 'DD'
+		}, {
+			period: 'MM',
+			format: 'MMM'
+		}, {
+			period: 'YYYY',
+			format: 'YYYY'
+		}];
+
+	// first value axis (on the left)
+	var valueAxis1 = new AmCharts.ValueAxis();
+	valueAxis1.axisColor = "#FF6600";
+	valueAxis1.axisThickness = 2;
+	valueAxis1.gridAlpha = 0;
+	chart.addValueAxis(valueAxis1);
+
+	// second value axis (on the right)
+	var valueAxis2 = new AmCharts.ValueAxis();
+	valueAxis2.position = "right"; // this line makes the axis to appear on the right
+	valueAxis2.axisColor = "#FCD202";
+	valueAxis2.gridAlpha = 0;
+	valueAxis2.axisThickness = 2;
+	chart.addValueAxis(valueAxis2);
+
+	// third value axis (on the left, detached)
+	var valueAxis3 = new AmCharts.ValueAxis();
+	valueAxis3.offset = 50; // this line makes the axis to appear detached from plot area
+	valueAxis3.gridAlpha = 0;
+	valueAxis3.axisColor = "#B0DE09";
+	valueAxis3.axisThickness = 2;
+	chart.addValueAxis(valueAxis3);
+
+	// GRAPHS
+	// first graph
+	var graph1 = new AmCharts.AmGraph();
+	graph1.valueAxis = valueAxis1; // we have to indicate which value axis should be used
+	graph1.title = "red line";
+	graph1.valueField = "visits";
+	graph1.bullet = "round";
+	graph1.hideBulletsCount = 30;
+	graph1.bulletBorderThickness = 1;
+	chart.addGraph(graph1);
+
+	// second graph
+	var graph2 = new AmCharts.AmGraph();
+	graph2.valueAxis = valueAxis2; // we have to indicate which value axis should be used
+	graph2.title = "yellow line";
+	graph2.valueField = "hits";
+	graph2.bullet = "square";
+	graph2.hideBulletsCount = 30;
+	graph2.bulletBorderThickness = 1;
+	chart.addGraph(graph2);
+
+	// third graph
+	var graph3 = new AmCharts.AmGraph();
+	graph3.valueAxis = valueAxis3; // we have to indicate which value axis should be used
+	graph3.valueField = "views";
+	graph3.title = "green line";
+	graph3.bullet = "triangleUp";
+	graph3.hideBulletsCount = 30;
+	graph3.bulletBorderThickness = 1;
+	chart.addGraph(graph3);
+
+	// CURSOR
+	var chartCursor = new AmCharts.ChartCursor();
+	chartCursor.cursorAlpha = 0.1;
+	chartCursor.fullWidth = true;
+	chart.addChartCursor(chartCursor);
+
+	// SCROLLBAR
+	var chartScrollbar = new AmCharts.ChartScrollbar();
+	chart.addChartScrollbar(chartScrollbar);
+
+	// LEGEND
+	var legend = new AmCharts.AmLegend();
+	legend.marginLeft = 110;
+	legend.useGraphSettings = true;
+	chart.addLegend(legend);
+
+	// WRITE
+	chart.write("am-chart-3");
+
+	// generate some random data, quite different range
+	function generateChartData() {
+		var firstDate = new Date();
+		firstDate.setDate(firstDate.getDate() - 50);
+
+		for (var i = 0; i < 50; i++) {
+			// we create date objects here. In your data, you can have date strings
+			// and then set format of your dates using chart.dataDateFormat property,
+			// however when possible, use date objects, as this will speed up chart rendering.
+			var newDate = new Date(firstDate);
+			newDate.setDate(newDate.getDate() + i);
+
+			var visits = Math.round(Math.random() * 40) + 100;
+			var hits = Math.round(Math.random() * 80) + 500;
+			var views = Math.round(Math.random() * 6000);
+
+			chartData.push({
+				date: newDate,
+				visits: visits,
+				hits: hits,
+				views: views
+			});
+		}
+	}
+
+	// this method is called when chart is first inited as we listen for "dataUpdated" event
+	function zoomChart() {
+		// different zoom methods can be used - zoomToIndexes, zoomToDates, zoomToCategoryValues
+		chart.zoomToIndexes(10, 20);
+	}
+}
+function DrawAmChart4(){
+	var chart;
+	var chartData = [
+		{
+			"year": 2009,
+			"income": 23.5,
+			"expenses": 18.1
+		},
+		{
+			"year": 2010,
+			"income": 26.2,
+			"expenses": 22.8
+		},
+		{
+			"year": 2011,
+			"income": 30.1,
+			"expenses": 23.9
+		},
+		{
+			"year": 2012,
+			"income": 29.5,
+			"expenses": 25.1
+		},
+		{
+			"year": 2013,
+			"income": 30.6,
+			"expenses": 27.2,
+			"dashLengthLine": 5
+		},
+		{
+			"year": 2014,
+			"income": 34.1,
+			"expenses": 29.9,
+			"dashLengthColumn": 5,
+			"alpha":0.2,
+			"additional":"(projection)"
+		}
+	];
+
+	// SERIAL CHART
+	chart = new AmCharts.AmSerialChart();
+	chart.pathToImages = "../amcharts/images/";
+	chart.dataProvider = chartData;
+	chart.categoryField = "year";
+	chart.startDuration = 1;
+
+	chart.handDrawn = true;
+	chart.handDrawnScatter = 3;
+
+	// AXES
+	// category
+	var categoryAxis = chart.categoryAxis;
+	categoryAxis.gridPosition = "start";
+
+	// value
+	var valueAxis = new AmCharts.ValueAxis();
+	valueAxis.axisAlpha = 0;
+	chart.addValueAxis(valueAxis);
+
+	// GRAPHS
+	// column graph
+	var graph1 = new AmCharts.AmGraph();
+	graph1.type = "column";
+	graph1.title = "Income";
+	graph1.lineColor = "#a668d5";
+	graph1.valueField = "income";
+	graph1.lineAlpha = 1;
+	graph1.fillAlphas = 1;
+	graph1.dashLengthField = "dashLengthColumn";
+	graph1.alphaField = "alpha";
+	graph1.balloonText = "<span style='font-size:13px;'>[[title]] in [[category]]:<b>[[value]]</b> [[additional]]</span>";
+	chart.addGraph(graph1);
+
+	// line
+	var graph2 = new AmCharts.AmGraph();
+	graph2.type = "line";
+	graph2.title = "Expenses";
+	graph2.lineColor = "#fcd202";
+	graph2.valueField = "expenses";
+	graph2.lineThickness = 3;
+	graph2.bullet = "round";
+	graph2.bulletBorderThickness = 3;
+	graph2.bulletBorderColor = "#fcd202";
+	graph2.bulletBorderAlpha = 1;
+	graph2.bulletColor = "#ffffff";
+	graph2.dashLengthField = "dashLengthLine";
+	graph2.balloonText = "<span style='font-size:13px;'>[[title]] in [[category]]:<b>[[value]]</b> [[additional]]</span>";
+	chart.addGraph(graph2);
+
+	// LEGEND
+	var legend = new AmCharts.AmLegend();
+	legend.useGraphSettings = true;
+	chart.addLegend(legend);
+
+	// WRITE
+	chart.write("am-chart-4");
+
+}
+
+function DrawAmChart5(){
+var chartData = [
+		{
+			"date": "2012-01-01",
+			"distance": 227,
+			"townName": "New York",
+			"townName2": "New York",
+			"townSize": 25,
+			"latitude": 40.71,
+			"duration": 408
+		},
+		{
+			"date": "2012-01-02",
+			"distance": 371,
+			"townName": "Washington",
+			"townSize": 14,
+			"latitude": 38.89,
+			"duration": 482
+		},
+		{
+			"date": "2012-01-03",
+			"distance": 433,
+			"townName": "Wilmington",
+			"townSize": 6,
+			"latitude": 34.22,
+			"duration": 562
+		},
+		{
+			"date": "2012-01-04",
+			"distance": 345,
+			"townName": "Jacksonville",
+			"townSize": 7,
+			"latitude": 30.35,
+			"duration": 379
+		},
+		{
+			"date": "2012-01-05",
+			"distance": 480,
+			"townName": "Miami",
+			"townName2": "Miami",
+			"townSize": 10,
+			"latitude": 25.83,
+			"duration": 501
+		},
+		{
+			"date": "2012-01-06",
+			"distance": 386,
+			"townName": "Tallahassee",
+			"townSize": 7,
+			"latitude": 30.46,
+			"duration": 443
+		},
+		{
+			"date": "2012-01-07",
+			"distance": 348,
+			"townName": "New Orleans",
+			"townSize": 10,
+			"latitude": 29.94,
+			"duration": 405
+		},
+		{
+			"date": "2012-01-08",
+			"distance": 238,
+			"townName": "Houston",
+			"townName2": "Houston",
+			"townSize": 16,
+			"latitude": 29.76,
+			"duration": 309
+		},
+		{
+			"date": "2012-01-09",
+			"distance": 218,
+			"townName": "Dalas",
+			"townSize": 17,
+			"latitude": 32.8,
+			"duration": 287
+		},
+		{
+			"date": "2012-01-10",
+			"distance": 349,
+			"townName": "Oklahoma City",
+			"townSize": 11,
+			"latitude": 35.49,
+			"duration": 485
+		},
+		{
+			"date": "2012-01-11",
+			"distance": 603,
+			"townName": "Kansas City",
+			"townSize": 10,
+			"latitude": 39.1,
+			"duration": 890
+		},
+		{
+			"date": "2012-01-12",
+			"distance": 534,
+			"townName": "Denver",
+			"townName2": "Denver",
+			"townSize": 18,
+			"latitude": 39.74,
+			"duration": 810
+		},
+		{
+			"date": "2012-01-13",
+			"townName": "Salt Lake City",
+			"townSize": 12,
+			"distance": 425,
+			"duration": 670,
+			"latitude": 40.75,
+			"dashLength": 8,
+			"alpha":0.4
+		},
+		{
+			"date": "2012-01-14",
+			"latitude": 36.1,
+			"duration": 470,
+			"townName": "Las Vegas",
+			"townName2": "Las Vegas"
+		},
+		{
+			"date": "2012-01-15"
+		},
+		{
+			"date": "2012-01-16"
+		},
+		{
+			"date": "2012-01-17"
+		},
+		{
+			"date": "2012-01-18"
+		},
+		{
+			"date": "2012-01-19"
+		}
+	];
+	var chart;
+
+	// SERIAL CHART
+	chart = new AmCharts.AmSerialChart();
+	chart.dataProvider = chartData;
+	chart.categoryField = "date";
+	chart.dataDateFormat = "YYYY-MM-DD";
+	chart.color = "#FFFFFF";
+	chart.marginLeft = 0;
+
+	// AXES
+	// category
+	var categoryAxis = chart.categoryAxis;
+	categoryAxis.parseDates = true; // as our data is date-based, we set parseDates to true
+	categoryAxis.minPeriod = "DD"; // our data is daily, so we set minPeriod to DD
+	categoryAxis.autoGridCount = false;
+	categoryAxis.gridCount = 50;
+	categoryAxis.gridAlpha = 0.1;
+	categoryAxis.gridColor = "#FFFFFF";
+	categoryAxis.axisColor = "#555555";
+	// we want custom date formatting, so we change it in next line
+	categoryAxis.dateFormats = [{
+		period: 'DD',
+		format: 'DD'
+	}, {
+		period: 'WW',
+		format: 'MMM DD'
+	}, {
+		period: 'MM',
+		format: 'MMM'
+	}, {
+		period: 'YYYY',
+		format: 'YYYY'
+	}];
+
+	// as we have data of different units, we create three different value axes
+	// Distance value axis
+	var distanceAxis = new AmCharts.ValueAxis();
+	distanceAxis.title = "distance";
+	distanceAxis.gridAlpha = 0;
+	distanceAxis.axisAlpha = 0;
+	chart.addValueAxis(distanceAxis);
+
+	// latitude value axis
+	var latitudeAxis = new AmCharts.ValueAxis();
+	latitudeAxis.gridAlpha = 0;
+	latitudeAxis.axisAlpha = 0;
+	latitudeAxis.labelsEnabled = false;
+	latitudeAxis.position = "right";
+	chart.addValueAxis(latitudeAxis);
+
+	// duration value axis
+	var durationAxis = new AmCharts.ValueAxis();
+	durationAxis.title = "duration";
+	// the following line makes this value axis to convert values to duration
+	// it tells the axis what duration unit it should use. mm - minute, hh - hour...
+	durationAxis.duration = "mm";
+	durationAxis.durationUnits = {
+		DD: "d. ",
+		hh: "h ",
+		mm: "min",
+		ss: ""
+	};
+	durationAxis.gridAlpha = 0;
+	durationAxis.axisAlpha = 0;
+	durationAxis.inside = true;
+	durationAxis.position = "right";
+	chart.addValueAxis(durationAxis);
+
+	// GRAPHS
+	// distance graph
+	var distanceGraph = new AmCharts.AmGraph();
+	distanceGraph.valueField = "distance";
+	distanceGraph.title = "distance";
+	distanceGraph.type = "column";
+	distanceGraph.fillAlphas = 0.9;
+	distanceGraph.valueAxis = distanceAxis; // indicate which axis should be used
+	distanceGraph.balloonText = "[[value]] miles";
+	distanceGraph.legendValueText = "[[value]] mi";
+	distanceGraph.legendPeriodValueText = "total: [[value.sum]] mi";
+	distanceGraph.lineColor = "#263138";
+	distanceGraph.dashLengthField = "dashLength";
+	distanceGraph.alphaField = "alpha";
+	chart.addGraph(distanceGraph);
+
+	// latitude graph
+	var latitudeGraph = new AmCharts.AmGraph();
+	latitudeGraph.valueField = "latitude";
+	latitudeGraph.title = "latitude/city";
+	latitudeGraph.type = "line";
+	latitudeGraph.valueAxis = latitudeAxis; // indicate which axis should be used
+	latitudeGraph.lineColor = "#786c56";
+	latitudeGraph.lineThickness = 1;
+	latitudeGraph.legendValueText = "[[description]]/[[value]]";
+	latitudeGraph.descriptionField = "townName";
+	latitudeGraph.bullet = "round";
+	latitudeGraph.bulletSizeField = "townSize"; // indicate which field should be used for bullet size
+	latitudeGraph.bulletBorderColor = "#786c56";
+	latitudeGraph.bulletBorderAlpha = 1;
+	latitudeGraph.bulletBorderThickness = 2;
+	latitudeGraph.bulletColor = "#000000";
+	latitudeGraph.labelText = "[[townName2]]"; // not all data points has townName2 specified, that's why labels are displayed only near some of the bullets.
+	latitudeGraph.labelPosition = "right";
+	latitudeGraph.balloonText = "latitude:[[value]]";
+	latitudeGraph.showBalloon = true;
+	latitudeGraph.dashLengthField = "dashLength";
+	chart.addGraph(latitudeGraph);
+
+	// duration graph
+	var durationGraph = new AmCharts.AmGraph();
+	durationGraph.title = "duration";
+	durationGraph.valueField = "duration";
+	durationGraph.type = "line";
+	durationGraph.valueAxis = durationAxis; // indicate which axis should be used
+	durationGraph.lineColor = "#ff5755";
+	durationGraph.balloonText = "[[value]]";
+	durationGraph.lineThickness = 1;
+	durationGraph.legendValueText = "[[value]]";
+	durationGraph.bullet = "square";
+	durationGraph.bulletBorderColor = "#ff5755";
+	durationGraph.bulletBorderThickness = 1;
+	durationGraph.bulletBorderAlpha = 1;
+	durationGraph.dashLengthField = "dashLength";
+	chart.addGraph(durationGraph);
+
+	// CURSOR
+	var chartCursor = new AmCharts.ChartCursor();
+	chartCursor.zoomable = false;
+	chartCursor.categoryBalloonDateFormat = "DD";
+	chartCursor.cursorAlpha = 0;
+	chartCursor.valueBalloonsEnabled = false;
+	chart.addChartCursor(chartCursor);
+
+	// LEGEND
+	var legend = new AmCharts.AmLegend();
+	legend.bulletType = "round";
+	legend.equalWidths = false;
+	legend.valueWidth = 120;
+	legend.useGraphSettings = true;
+	legend.color = "#FFFFFF";
+	chart.addLegend(legend);
+
+	// WRITE
+	chart.write("am-chart-5");
+}
+// Draw all test Chartist Charts
+function DrawChartistCharts(){
+	DrawChartistChart1();
+	DrawChartistChart2();
+	DrawChartistChart3();
+	DrawChartistChart4();
+	DrawChartistChart5();
+}
+function DrawChartistChart1(){
+	Chartist.Line('#chartist-1', {
+		labels: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
+			'November', 'December'],
+		series: [
+			[12, 9, 7, 8, 5, 5, 17, 11 , 12, 6, 3, 9],
+			[2, 1, 3.5, 7, 3, 6, 2, 9, 1, 21, 15, 1],
+			[1, 3, 4, 5, 6, 1, 15, 3, 9, 11, 18, 14]
+		]
+	});
+}
+function DrawChartistChart2(){
+	var times = function(n) {
+		return Array.apply(null, new Array(n));
+	};
+	var data = times(52).map(Math.random).reduce(function(data, rnd, index) {
+		data.labels.push(index + 1);
+		data.series.forEach(function(series) {
+			series.push(Math.random() * 100)
+		});
+		return data;
+	}, {
+		labels: [],
+		series: times(4).map(function() { return new Array() })
+	});
+	var options = {
+		showLine: false,
+		axisX: {
+			labelInterpolationFnc: function(value, index) {
+				return index % 13 === 0 ? 'W' + value : null;
+			}
+		}
+	};
+	var responsiveOptions = [
+		['screen and (min-width: 640px)', {
+			axisX: {
+				labelInterpolationFnc: function(value, index) {
+					return index % 4 === 0 ? 'W' + value : null;
+				}
+			}
+		}]
+	];
+	Chartist.Line('#chartist-2', data, options, responsiveOptions);
+}
+function DrawChartistChart3(){
+	Chartist.Line('#chartist-3', {
+		labels: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+		series: [
+				[1, 2, 3, 1, -2, 0, 1, 0, 3, -1, 1],
+				[-2, -1, -2, -1, -2.5, -1, -2, -1, -2, 2, -2],
+				[0, 0, 0, 1, 2, 2.5, 2, 1, 4, -3, 1],
+				[2.5, 2, 1, 0.5, 1, 0.5, -1, -2.5, -1, 2, 1]
+			]
+		}, {
+			high: 3,
+			low: -3,
+			showArea: true,
+			showLine: false,
+			showPoint: false,
+			axisX: {
+				showLabel: false,
+				showGrid: false
+			}
+		});
+}
+function DrawChartistChart4(){
+	Chartist.Pie('#chartist-4', {
+		series: [20, 10, 30, 40]
+	}, {
+		donut: true,
+		donutWidth: 60,
+		startAngle: 270,
+		total: 200,
+		showLabel: false
+	});
+}
+function DrawChartistChart5(){
+	var data = {
+		labels: ['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W10', 'W11', 'W12', 'W13', 'W14', 'W15', 'W16', 'W17', 'W18'],
+		series: [
+				[1, 2, 4, 8, 6, -2, -1, -4, -6, -2, 3, 6, 1, -4, 2, 7, -1, 3]
+			]
+	};
+	var options = {
+		high: 10,
+		low: -10,
+		axisX: {
+			labelInterpolationFnc: function(value, index) {
+				return index % 2 === 0 ? value : null;
+			}
+		}
+	};
+	Chartist.Bar('#chartist-5', data, options);
 }
 //
 //  Dynamically load Fancybox 2 plugin
@@ -1686,7 +2578,7 @@ function SparklineLoop(){
 	SparkLineDrawBarGraph($('#sparkline-3'), sparkline_arr_3.map(SmallChangeVal), '#B25050');
 }
 //
-// Draw Morris charts on Dashboard (panel- Statistics + 3 donut)
+// Draw Morris charts on Dashboard (panel- Statistics - Planning + 3 donuts)
 //
 function MorrisDashboard(){
 	Morris.Line({
@@ -1741,6 +2633,70 @@ function MorrisDashboard(){
 		],
 		formatter: function (x, data) { return data.formatted; }
 	});
+	Morris.Bar({
+		element: 'planning-chart-1',
+		data: [
+			{x: 'Network upgrade', y: 179459},
+			{x: 'Improved power equipment', y: 59411},
+			{x: 'New ticket system', y: 14906},
+			{x: 'Storage area network', y: 250000},
+			{x: 'New optical channels', y: 22359},
+			{x: 'Load balance system', y: 33950}
+		],
+		xkey: 'x',
+		ykeys: ['y'],
+		labels: ['Y'],
+		barColors: function (row, series, type) {
+			if (type === 'bar') {
+				var red = Math.ceil(255 * row.y / this.ymax);
+				return 'rgb(' + red + ',0,0)';
+			}
+			else {
+				return '#000';
+			}
+		}
+	});
+	Morris.Bar({
+		element: 'planning-chart-2',
+		data: [
+			{x: "2015-01", y: 179459},
+			{x: "2015-02", y: 149459},
+			{x: "2015-03", y: 13849},
+			{x: "2015-04", y: 12349},
+			{x: "2015-05", y: 200019},
+			{x: "2015-06", y: 59459},
+			{x: "2015-07", y: 93459},
+			{x: "2015-08", y: 133044},
+			{x: "2015-09", y: 9244},
+			{x: "2015-10", y: 54144},
+			{x: "2015-11", y: 19954},
+			{x: "2015-11", y: 38452}
+		],
+		xkey: 'x',
+		ykeys: ['y'],
+		labels: ['Spending'],
+		barColors: function (row, series, type) {
+			if (type === 'bar') {
+				var red = Math.ceil(255 * row.y / this.ymax);
+				return 'rgb(0,' + red + ',0)';
+			}
+			else {
+				return '#000';
+			}
+		}
+	});
+	Morris.Donut({
+		element: 'planning-chart-3',
+		data: [
+			{label: 'Network upgrade', value: 179459},
+			{label: 'Improved power equipment', value: 59411},
+			{label: 'New ticket system', value: 14906},
+			{label: 'Storage area network', value: 250000},
+			{label: 'New optical channels', value: 22359},
+			{label: 'Load balance system', value: 33950}
+		],
+		colors: ['#CCC', '#DDD', '#BBB']
+	});
 }
 //
 // Draw SparkLine example Charts for Dashboard (table- Tickers)
@@ -1774,6 +2730,46 @@ function DrawKnobDashboard(){
 	setInterval(function(){
 		srv_monitoring_selectors.forEach(RedrawKnob);
 	}, 3000);
+}
+//
+// Draw Springy graphs (Network map) on Dashboard page
+//
+function SpringyNetmap(){
+	var graph = new Springy.Graph();
+	var core1 = graph.newNode({label: 'Network core 1 (Cisco 3750G-48PS)'});
+	var core2 = graph.newNode({label: 'Network core 2 (Cisco 3750G-48PS)'});
+	var srv1 = graph.newNode({label: 'Server switch 1 (Cisco 3750G-48TS)'});
+	var srv2 = graph.newNode({label: 'Server switch 2 (Cisco 3750G-48TS)'});
+	var pabx1 = graph.newNode({label: 'PABX switch 1 (Cisco 3750G-48TS)'});
+	var pabx2 = graph.newNode({label: 'PABX switch 2 (Cisco 3750G-48TS)'});
+	var router1 = graph.newNode({label: 'Router 1 (Cisco 3945E)'});
+	var router2 = graph.newNode({label: 'Router 2 (Cisco 3945E)'});
+	graph.newEdge(core1, core2, {color: '#00A0B0'});
+	graph.newEdge(core2, core1, {color: '#6A4A3C'});
+	graph.newEdge(core1, srv1, {color: '#CC333F'});
+	graph.newEdge(core2, srv1, {color: '#CC333F'});
+	graph.newEdge(core1, srv2, {color: '#EB6841'});
+	graph.newEdge(core2, srv2, {color: '#EB6841'});
+	graph.newEdge(srv1, srv2, {color: '#EDC951'});
+	graph.newEdge(srv2, srv1, {color: '#EDC951'});
+	graph.newEdge(pabx1, core1, {color: '#7DBE3C'});
+	graph.newEdge(pabx1, core2, {color: '#7DBE3C'});
+	graph.newEdge(pabx2, core1, {color: '#000000'});
+	graph.newEdge(pabx2, core2, {color: '#000000'});
+	graph.newEdge(router1, core1, {color: '#00A0B0'});
+	graph.newEdge(router1, core2, {color: '#00A0B0'});
+	graph.newEdge(router2, core1, {color: '#6A4A3C'});
+	graph.newEdge(router2, core2, {color: '#6A4A3C'});
+	graph.newEdge(pabx1, pabx2, {color: '#CC333F'});
+	graph.newEdge(pabx2, pabx1, {color: '#CC333F'});
+	graph.newEdge(router1, router2, {color: '#EB6841'});
+	graph.newEdge(router2, router1, {color: '#EB6841'});
+	$('#springy-demo').springy({
+		graph: graph,
+		nodeSelected: function(node){
+			console.log('Node selected: ' + JSON.stringify(node.data));
+		}
+	});
 }
 /*-------------------------------------------
 	Function for File upload page (form_file_uploader.html)
@@ -1844,6 +2840,65 @@ function FullScreenMap(){
 			var map_fs = drawMap(json.longitude, json.latitude, "full-map", map1_layers);
 		}
 	);
+}
+/*-------------------------------------------
+	Function for Fullscreen Leaflet map page (map_leaflet.html)
+---------------------------------------------*/
+//
+// Create Leaflet Fullscreen Map
+//
+function FullScreenLeafletMap(){
+	$.getJSON("http://www.telize.com/geoip?callback=?",
+		function(json) {
+			var map = L.map('full-map').setView([json.latitude, json.longitude ], 10);
+			L.tileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+				attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="http://mapbox.com">Mapbox</a>',
+				maxZoom: 18
+			}).addTo(map);
+			var circle = L.circle([json.latitude, json.longitude], 350, {
+				color: 'red',
+				fillColor: '#f03',
+				fillOpacity: 0.5
+			}).addTo(map);
+			circle.bindPopup("<b>Hello!</b><br>May be you here.").openPopup();
+		}
+	);
+}
+/*-------------------------------------------
+	Function for get stock from Yahoo finance to dashboard page
+---------------------------------------------*/
+//
+// Make stock dashboard page
+//
+function CreateStockPage(){
+	var yqlURL="http://query.yahooapis.com/v1/public/yql?q=";
+	var dataFormat="&format=json&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys";
+	$(function() { //Load jQueryUI DatePicker by class name
+		$( ".datePick" ).datepicker({dateFormat: 'yy-mm-dd'} );
+	});
+	$("#submit").click(function() {
+		var symbol = $("#txtSymbol").val();
+		var startDate=$("#startDate").val();
+		var endDate=$("#endDate").val();
+		var realtimeQ = yqlURL+"select%20*%20from%20yahoo.finance.quotes%20where%20symbol%20in%20(%22" + symbol + "%22)%0A%09%09&"+ dataFormat;
+		var historicalQ = yqlURL+"select%20*%20from%20yahoo.finance.historicaldata%20where%20symbol%20%3D%20%22"+ symbol +"%22%20and%20startDate%20%3D%20%22"+ startDate +"%22%20and%20endDate%20%3D%20%22"+ endDate +"%22"+ dataFormat;
+		$(function() {
+			$.getJSON(realtimeQ, function(json) {//YQL Request
+				$('#symbol').text(json.query.results.quote.Name);//Assign quote.Param to span tag
+				$('#bidRealtime').text(json.query.results.quote.BidRealtime);
+			});
+		}); 
+		$(function() {
+			$.getJSON(historicalQ, function(json) {
+				$.each(json.query.results.quote, function(i, quote) {//loop results.quote object
+					$("#date").append('<span>' + quote.Date + '</span');//create span for each record
+				});
+				$.each(json.query.results.quote, function(i, quote) { //new each statement is needed
+					$("#closeValue").append('<span>' + quote.Close + '</span');
+				});
+			});
+		});
+	});
 }
 /*-------------------------------------------
 	Function for Flickr Gallery page (gallery_flickr.html)
@@ -2294,7 +3349,7 @@ function DrawFullCalendar(){
 //////////////////////////////////////////////////////
 //////////////////////////////////////////////////////
 $(document).ready(function () {
-	$('.show-sidebar').on('click', function (e) {
+	$('body').on('click', '.show-sidebar', function (e) {
 		e.preventDefault();
 		$('div#main').toggleClass('sidebar-show');
 		setTimeout(MessagesMenuWidth, 250);
@@ -2427,6 +3482,12 @@ $(document).ready(function () {
 		var button = $('<div class="text-center"><a href="index.html" class="btn btn-primary">Unlock</a></div>');
 		OpenModalBox(header, form, button);
 	});
+	$('.about').on('click', function(){
+		$('#about').toggleClass('about-h');
+	})
+	$('#about').on('mouseleave', function(){
+		$('#about').removeClass('about-h');
+	})
 });
 
 
