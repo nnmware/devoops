@@ -3359,6 +3359,10 @@ $(document).ready(function () {
 		ajax_url = 'ajax/dashboard.html';
 	}
 	LoadAjaxContent(ajax_url);
+	var item = $('.main-menu li a[href$="' + ajax_url + '"]');
+	item.addClass('active-parent active');
+	$('.dropdown:has(li:has(a.active)) > a').addClass('active-parent active');
+	$('.dropdown:has(li:has(a.active)) > ul').css("display", "block");
 	$('.main-menu').on('click', 'a', function (e) {
 		var parents = $(this).parents('li');
 		var li = $(this).closest('li.dropdown');
