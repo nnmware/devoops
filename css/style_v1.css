@@ -251,14 +251,18 @@ a.show-sidebar:hover {
   background: none !important;
 }
 .panel-menu .badge {
-  margin-top:5px;
+  background: none repeat scroll 0 0 #e84e40;
+  border-radius: 50%;
+  color: #fff;
+  margin-top: 5px;
   padding: 3px 6px;
+  font-size: 11px;
+  height: 15px;
+  width: 17px;
   vertical-align: top;
-  border-radius: 2px;
-  background:none;
-  color: #436E90;
-  border: 1px solid #436E90;
+  text-align: center;
 }
+
 .avatar {
   width: 40px;
   float: left;
@@ -1105,7 +1109,7 @@ ul.DTTT_dropdown.dropdown-menu > li:hover > a {
   margin-left: 0;
 }
 .toggle-switch input:checked + .toggle-switch-inner + .toggle-switch-switch {
-  right: 0px; 
+  right: 0px;
 }
 .toggle-switch-danger input:checked + .toggle-switch-inner + .toggle-switch-switch {
   border:2px solid #D15E5E;
@@ -1760,9 +1764,9 @@ ul.DTTT_dropdown.dropdown-menu > li:hover > a {
 }
 .btn + .dropdown-menu {
   margin-top: -10px;
-  background: rgba(0, 0, 0, 0.7) !important; padding: 0; border: 0; 
-  right: 0; 
-  left: auto; 
+  background: rgba(0, 0, 0, 0.7) !important; padding: 0; border: 0;
+  right: 0;
+  left: auto;
   min-width: 100%;
 }
 .btn + .dropdown-menu > li > a {
