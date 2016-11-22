@@ -1,0 +1,54 @@
+{
+  "name": "devoops-bootstrap-theme",
+  "description": "This is free open-source bootstrap 3 admin dashboard theme",
+  "homepage": "http://devoops.me",
+  "authors": [
+    "Devoops <devoopsme@gmail.com>"
+  ],
+  "main": [
+    "js/devoops.js",
+    "css/style_v1.css",
+    "css/style_v2.css"
+  ],
+  "dependencies": {
+    "amcharts": "~3.15.2",
+    "bootstrap-sass": "~3.3.5",
+    "bootstrapvalidator": "~0.5.3",
+    "bower-jquery-sparkline": ">= 2.1.3",
+    "bower-xcharts": "git://github.com/vperron/bower-xcharts#0.3.0",
+    "chartist": "~0.9.4",
+    "d3": "~3.5.6",
+    "datatables-plugins": ">=1.10.0",
+    "fancybox": "~2.1.5",
+    "fine-uploader": ">=5.3.1",
+    "flot": "~0.8.3",
+    "fullcalendar": "~2.4.0",
+    "jquery": "~2.1.4",
+    "jquery-knob": "~1.2.11",
+    "jquery-ui": "~1.11.1",
+    "jqueryui-timepicker-addon": ">=1.5.5",
+    "Justified-Gallery": ">=3.6.0",
+    "leaflet": "~0.7.5",
+    "moment": "~2.10.6",
+    "morris.js": ">=0.5.0",
+    "openlayers": "*",
+    "raphael": ">= 2.0",
+    "select2": "~4.0.0",
+    "springy": ">=2.7.1",
+    "tinymce": ">= 4.2.5",
+    "fontawesome": ">=4.4.0"
+  },
+  "keywords": [
+    "devoops",
+    "dashboard-theme",
+    "admin-theme",
+    "bootstrap-theme"
+  ],
+  "license": "GPL-3.0",
+  "ignore": [
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ]
+}
